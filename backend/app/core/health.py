@@ -4,8 +4,8 @@ Health check utilities for database and Redis connectivity.
 import logging
 from typing import Optional
 
-import psycopg
-import redis.asyncio as redis
+import psycopg2
+import redis
 
 from app.core.config import settings
 
@@ -18,10 +18,11 @@ async def check_database() -> bool:
     Returns True if connection successful, False otherwise.
     """
     try:
-        # Parse connection string
-        # Format: postgresql://user:password@host:port/database
-        async with await psycopg.AsyncConnection.connect(settings.DATABASE_URL) as conn:
-            await conn.execute("SELECT 1")
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
         logger.debug("Database connection check: OK")
         return True
     except Exception as e:
@@ -35,9 +36,9 @@ async def check_redis() -> bool:
     Returns True if connection successful, False otherwise.
     """
     try:
-        r = await redis.from_url(settings.REDIS_URL, decode_responses=True)
-        await r.ping()
-        await r.close()
+        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        r.ping()
+        r.close()
         logger.debug("Redis connection check: OK")
         return True
     except Exception as e:
