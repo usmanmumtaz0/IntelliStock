@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.health import check_database, check_redis
+from app.database import init_db
 
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -19,6 +20,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI app."""
     logger.info("Application startup")
+    # Initialize database tables
+    try:
+        init_db()
+        logger.info("Database initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
     yield
     logger.info("Application shutdown")
 
