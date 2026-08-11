@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `FE-002` — Auth Pages & Protected Routes
-**Last Updated:** FE-001 complete ✅ (5 pages + components built and verified)
+**Currently On:** `FE-003` — Dashboard with Real Data (Phase 6+)
+**Last Updated:** FE-002 complete ✅ (Login/Register + Protected Routes working)
 
 ---
 
@@ -16,8 +16,8 @@
 
 ### EPIC 2 — Frontend Shell
 - [x] `FE-001` Frontend pages (Dashboard, Shelves, Inventory, Alerts, Settings) with layouts — **All 5 pages + components built** ✅
-- [ ] `FE-002` Auth pages (Login, Register) + protected route wrapper
-- [ ] `FE-003` Dashboard with empty/loading states (no real data yet)
+- [x] `FE-002` Auth pages (Login, Register) + protected route wrapper — **JWT mock auth working** ✅
+- [ ] `FE-003` Dashboard with real data integration (Phase 6+)
 
 ### EPIC 3 — Computer Vision Prototype
 - [ ] `CV-001` Video ingestion + frame sampler
@@ -68,7 +68,7 @@
 ## Decisions Log
 *(append one line per material decision made during implementation — this replaces needing to re-explain reasoning next session)*
 
-- (none yet)
+- Dev Auth: Using localStorage + mock JWT for Phase 2. Phase 5 replaces with real backend JWT
 
 ## Known Issues / Gotchas
 *(append anything a future session needs to know to avoid re-discovering it)*
