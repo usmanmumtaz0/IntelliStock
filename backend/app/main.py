@@ -42,13 +42,13 @@ app.add_middleware(
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     """
     Health check endpoint.
     Returns status and connection checks for Postgres and Redis.
     """
-    db_status = await check_database()
-    redis_status = await check_redis()
+    db_status = check_database()
+    redis_status = check_redis()
     
     return {
         "status": "ok" if (db_status and redis_status) else "degraded",
@@ -58,11 +58,11 @@ async def health_check():
 
 
 @app.get("/api/v1/health")
-async def api_health_check():
+def api_health_check():
     """
     API health check endpoint (versioned).
     """
-    return await health_check()
+    return health_check()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@
 Health check utilities for database and Redis connectivity.
 """
 import logging
-from typing import Optional
 
 import psycopg2
 import redis
@@ -12,7 +11,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def check_database() -> bool:
+def check_database() -> bool:
     """
     Check PostgreSQL database connectivity.
     Returns True if connection successful, False otherwise.
@@ -30,7 +29,7 @@ async def check_database() -> bool:
         return False
 
 
-async def check_redis() -> bool:
+def check_redis() -> bool:
     """
     Check Redis connectivity.
     Returns True if connection successful, False otherwise.
