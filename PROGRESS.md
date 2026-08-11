@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `FE-001` — Frontend Pages (Dashboard, Shelves, Inventory, Alerts, Settings)
-**Last Updated:** EPIC 1 complete (Phase 1) ✅; moving to EPIC 2 (Phase 2) — Frontend scaffold working, now building pages
+**Currently On:** `FE-002` — Auth Pages & Protected Routes
+**Last Updated:** FE-001 complete ✅ (5 pages + components built and verified)
 
 ---
 
@@ -15,7 +15,7 @@
 - [x] `FOUND-003` CI skeleton (lint + pytest on push) — **Pytest smoke tests (3/3 passing)** ✅
 
 ### EPIC 2 — Frontend Shell
-- [ ] `FE-001` Frontend pages (Dashboard, Shelves, Inventory, Alerts, Settings) with layouts
+- [x] `FE-001` Frontend pages (Dashboard, Shelves, Inventory, Alerts, Settings) with layouts — **All 5 pages + components built** ✅
 - [ ] `FE-002` Auth pages (Login, Register) + protected route wrapper
 - [ ] `FE-003` Dashboard with empty/loading states (no real data yet)
 
