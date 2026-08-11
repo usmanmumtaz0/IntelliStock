@@ -2,22 +2,22 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `FE-001` — Frontend Shell (Next.js + Tailwind + shadcn/ui)
-**Last Updated:** EPIC 1 complete; env/config + CI setup done
+**Currently On:** `FE-001` — Frontend Pages (Dashboard, Shelves, Inventory, Alerts, Settings)
+**Last Updated:** EPIC 1 complete (Phase 1) ✅; moving to EPIC 2 (Phase 2) — Frontend scaffold working, now building pages
 
 ---
 
 ## MVP Scope = EPIC 1–6 (Phases 1–8). Everything after EPIC 6 is post-MVP.
 
 ### EPIC 1 — Project Foundation
-- [x] `FOUND-001` Monorepo structure + Docker Compose skeleton (Postgres, Redis, backend, frontend) — **Dev Status page created** ✅
-- [x] `FOUND-002` Env/config management (`pydantic-settings`, `.env.example`) — **Config validation + multi-env support** ✅
-- [x] `FOUND-003` CI skeleton (lint + pytest on push) — **GitHub Actions CI workflow** ✅
+- [x] `FOUND-001` Monorepo structure + Docker Compose skeleton — **Local dev setup working** ✅
+- [x] `FOUND-002` Env/config management (`pydantic-settings`, `.env.example`) — **Config loaded, no secrets in git** ✅
+- [x] `FOUND-003` CI skeleton (lint + pytest on push) — **Pytest smoke tests (3/3 passing)** ✅
 
 ### EPIC 2 — Frontend Shell
-- [ ] `FE-001` Next.js + Tailwind + shadcn/ui scaffold, nav structure
-- [ ] `FE-002` Auth pages + protected route wrapper
-- [ ] `FE-003` Dashboard shell (empty/loading states, no real data)
+- [ ] `FE-001` Frontend pages (Dashboard, Shelves, Inventory, Alerts, Settings) with layouts
+- [ ] `FE-002` Auth pages (Login, Register) + protected route wrapper
+- [ ] `FE-003` Dashboard with empty/loading states (no real data yet)
 
 ### EPIC 3 — Computer Vision Prototype
 - [ ] `CV-001` Video ingestion + frame sampler
