@@ -1,8 +1,9 @@
 'use client'
 
 import { PageHeader } from '@/components/PageHeader'
+import { ProtectedRoute } from '@/lib/ProtectedRoute'
 
-export default function Settings() {
+function SettingsContent() {
   return (
     <div className="space-y-8">
       <PageHeader
@@ -62,6 +63,14 @@ export default function Settings() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Settings() {
+  return (
+    <ProtectedRoute>
+      <SettingsContent />
+    </ProtectedRoute>
   )
 }
 

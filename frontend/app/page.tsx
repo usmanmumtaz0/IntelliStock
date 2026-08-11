@@ -1,9 +1,9 @@
 'use client'
 
 import { PageHeader } from '@/components/PageHeader'
-import { LoadingState } from '@/components/LoadingState'
+import { ProtectedRoute } from '@/lib/ProtectedRoute'
 
-export default function Dashboard() {
+function DashboardContent() {
   return (
     <div className="space-y-8">
       <PageHeader
@@ -29,6 +29,14 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <RecentActivityPlaceholder />
     </div>
+  )
+}
+
+export default function Dashboard() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   )
 }
 

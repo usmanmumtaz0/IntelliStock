@@ -2,8 +2,9 @@
 
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
+import { ProtectedRoute } from '@/lib/ProtectedRoute'
 
-export default function Inventory() {
+function InventoryContent() {
   return (
     <div className="space-y-8">
       <PageHeader
@@ -55,5 +56,13 @@ export default function Inventory() {
         </table>
       </div>
     </div>
+  )
+}
+
+export default function Inventory() {
+  return (
+    <ProtectedRoute>
+      <InventoryContent />
+    </ProtectedRoute>
   )
 }

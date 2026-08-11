@@ -2,8 +2,9 @@
 
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
+import { ProtectedRoute } from '@/lib/ProtectedRoute'
 
-export default function Shelves() {
+function ShelvesContent() {
   return (
     <div className="space-y-8">
       <PageHeader
@@ -34,5 +35,13 @@ export default function Shelves() {
         </ul>
       </div>
     </div>
+  )
+}
+
+export default function Shelves() {
+  return (
+    <ProtectedRoute>
+      <ShelvesContent />
+    </ProtectedRoute>
   )
 }
