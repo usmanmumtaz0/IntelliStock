@@ -155,9 +155,10 @@ class ReconciliationEngine:
             self.db.commit()
             
             if prev_qty != quantity_estimate:
+                status_val = inv.status.value if inv.status else "unknown"
                 logger.info(
                     f"Inventory updated: {zone_id}/{product_id} "
-                    f"{prev_qty} → {quantity_estimate}, status={inv.status.value}"
+                    f"{prev_qty} → {quantity_estimate}, status={status_val}"
                 )
             
             return True
@@ -168,7 +169,7 @@ class ReconciliationEngine:
     
     def _apply_state_transition(self, inv: Inventory):
         """Apply state machine logic (from Section 5.3)."""
-        prev_status = inv.status
+        prev_status = inv.status if inv.status else InventoryStatus.UNKNOWN
         qty = inv.quantity_estimate
         conf = inv.confidence
         
