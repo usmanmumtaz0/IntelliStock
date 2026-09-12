@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/AuthContext'
@@ -8,20 +8,21 @@ import { mockRegister, setToken, setUser } from '@/lib/auth'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [role, setRole] = useState<'user' | 'admin'>('user')
   const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Redirect if already authenticated
-  if (isAuthenticated) {
-    router.push('/')
-    return null
-  }
+  // Redirect if already authenticated (check after loading)
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/')
+    }
+  }, [isAuthenticated, isLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,20 +39,31 @@ export default function RegisterPage() {
       return
     }
 
-    setIsLoading(true)
+    setIsSubmitting(true)
 
     try {
       const response = await mockRegister(email, username, password, role)
       setToken(response.access_token)
       setUser(response.user)
 
-      // Redirect to dashboard
+      // Force redirect to dashboard
       router.push('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
-    } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
+  }
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -90,6 +102,7 @@ export default function RegisterPage() {
               placeholder="your@email.com"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -106,6 +119,7 @@ export default function RegisterPage() {
               placeholder="your_username"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -122,6 +136,7 @@ export default function RegisterPage() {
               placeholder="••••••••"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              disabled={isSubmitting}
             />
             <p className="text-xs text-slate-500 mt-1">Minimum 6 characters</p>
           </div>
@@ -139,6 +154,7 @@ export default function RegisterPage() {
               placeholder="••••••••"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -152,6 +168,7 @@ export default function RegisterPage() {
               value={role}
               onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
             >
               <option value="user">User (Regular Access)</option>
               <option value="admin">Admin (Full Access)</option>
@@ -161,10 +178,10 @@ export default function RegisterPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitting}
             className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Creating Account...' : 'Create Account'}
+            {isSubmitting ? 'Creating Account...' : 'Create Account'}
           </button>
 
           {/* Login Link */}
