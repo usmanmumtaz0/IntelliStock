@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `BE-EVT-001` — Event Publisher (Redis pub/sub)
-**Last Updated:** BE-API-001 complete ✅ (All REST endpoints working)
+**Currently On:** `CV-001` — Video Ingestion (Phase 3)
+**Last Updated:** Phase 5 COMPLETE ✅ (All backend core done)
 
 ---
 
@@ -34,11 +34,11 @@
 
 ### EPIC 5 — Backend Core
 - [x] `BE-AUTH-001` JWT auth + RBAC middleware — **Dev mode ready** ✅
-- [x] `BE-DB-001` SQLAlchemy models + Database setup — **7 tables created (User, Camera, Zone, Product, Inventory, Event)** ✅
-- [x] `BE-API-001` REST endpoints (cameras, zones, products, inventory) — **All CRUD + filters working** ✅
-- [ ] `BE-EVT-001` Event publisher (Pydantic events → Redis pub/sub)
-- [ ] `BE-EVT-002` Event consumer + deterministic rule engine
-- [ ] `BE-WS-001` WebSocket gateway (Redis → clients)
+- [x] `BE-DB-001` SQLAlchemy models + Database setup — **7 tables created** ✅
+- [x] `BE-API-001` REST endpoints (CRUD + filters) — **All endpoints working** ✅
+- [x] `BE-EVT-001` Event publisher (Pydantic events → Redis pub/sub) — **Published successfully** ✅
+- [x] `BE-EVT-002` Event consumer + deterministic rule engine — **Rule engine with handlers** ✅
+- [x] `BE-WS-001` WebSocket gateway (Redis → clients) — **Connection manager + endpoint** ✅
 
 ### EPIC 6 — End-to-End MVP Integration
 - [ ] `E2E-001` Wire full pipeline: CV → Reconciliation → Events → Rules → WebSocket → Dashboard
