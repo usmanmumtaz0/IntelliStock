@@ -36,7 +36,7 @@ class InventoryEvent(BaseModel):
     new_state = Column(String(64), nullable=True)
     confidence = Column(Float, nullable=True)
     
-    metadata = Column(Text, nullable=True)  # JSON additional context
+    extra_data = Column(Text, nullable=True)  # JSON additional context
 
     def __repr__(self):
         return f"<InventoryEvent {self.event_type}>"

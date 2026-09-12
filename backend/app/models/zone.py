@@ -1,7 +1,7 @@
 """
 Zone model for shelf ROI definitions.
 """
-from sqlalchemy import Column, String, ForeignKey, Text
+from sqlalchemy import Column, String, ForeignKey, Text, Float
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
