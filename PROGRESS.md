@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `FE-003` — Dashboard with Real Data (Phase 6+)
-**Last Updated:** FE-002 complete ✅ (Login/Register + Protected Routes working)
+**Currently On:** `BE-EVT-001` — Event Publisher (Redis pub/sub)
+**Last Updated:** BE-API-001 complete ✅ (All REST endpoints working)
 
 ---
 
@@ -33,9 +33,9 @@
 - [ ] `INV-004` Camera heartbeat/offline detection
 
 ### EPIC 5 — Backend Core
-- [ ] `BE-AUTH-001` JWT auth + RBAC middleware
-- [ ] `BE-DB-001` SQLAlchemy models + Alembic migrations
-- [ ] `BE-API-001` REST endpoints: cameras, zones, products, inventory
+- [x] `BE-AUTH-001` JWT auth + RBAC middleware — **Dev mode ready** ✅
+- [x] `BE-DB-001` SQLAlchemy models + Database setup — **7 tables created (User, Camera, Zone, Product, Inventory, Event)** ✅
+- [x] `BE-API-001` REST endpoints (cameras, zones, products, inventory) — **All CRUD + filters working** ✅
 - [ ] `BE-EVT-001` Event publisher (Pydantic events → Redis pub/sub)
 - [ ] `BE-EVT-002` Event consumer + deterministic rule engine
 - [ ] `BE-WS-001` WebSocket gateway (Redis → clients)
