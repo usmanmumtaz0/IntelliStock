@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.health import check_database, check_redis
 from app.database import init_db
+from app.api import cameras, products, inventory
 
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -46,6 +47,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(cameras.router)
+app.include_router(products.router)
+app.include_router(inventory.router)
 
 
 @app.get("/health")
