@@ -11,6 +11,8 @@ from app.core.config import settings
 from app.core.health import check_database, check_redis
 from app.database import init_db
 from app.api import cameras, products, inventory
+from app.api.websocket import router as ws_router
+from app.events import event_consumer
 
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -27,7 +29,23 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
+    
+    # Start event consumer
+    try:
+        event_consumer.start()
+        logger.info("Event consumer started")
+    except Exception as e:
+        logger.error(f"Failed to start event consumer: {e}")
+    
     yield
+    
+    # Stop event consumer
+    try:
+        event_consumer.stop()
+        logger.info("Event consumer stopped")
+    except Exception as e:
+        logger.error(f"Failed to stop event consumer: {e}")
+    
     logger.info("Application shutdown")
 
 
@@ -52,6 +70,7 @@ app.add_middleware(
 app.include_router(cameras.router)
 app.include_router(products.router)
 app.include_router(inventory.router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
