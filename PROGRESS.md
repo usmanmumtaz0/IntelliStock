@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** `CV-001` — Video Ingestion (Phase 3)
-**Last Updated:** Phase 4 COMPLETE ✅ (All 4/4 reconciliation tasks done)
+**Currently On:** `E2E-001` — End-to-End Integration (Phase 6)
+**Last Updated:** Phase 3 COMPLETE ✅ (All 5/5 CV tasks done)
 
 ---
 
@@ -20,10 +20,10 @@
 - [ ] `FE-003` Dashboard with real data integration (Phase 6+)
 
 ### EPIC 3 — Computer Vision Prototype
-- [ ] `CV-001` Video ingestion + frame sampler
-- [ ] `CV-002` YOLO detection + confidence filter
-- [ ] `CV-003` ByteTrack integration
-- [ ] `CV-004` ROI/shelf zone definition + point-in-polygon assignment
+- [x] `CV-001` Video ingestion + frame sampler — **Webcam, file, RTSP; configurable FPS** ✅
+- [x] `CV-002` YOLO detection + confidence filter — **YOLOv8 integration, per-frame detections** ✅
+- [x] `CV-003` ByteTrack integration — **Persistent track IDs, min track length validation** ✅
+- [x] `CV-004` ROI/shelf zone definition + point-in-polygon assignment — **JSON polygons, center-based** ✅
 - [ ] `CV-005` Recorded-video replay mode
 
 ### EPIC 4 — Inventory Reconciliation
@@ -68,6 +68,7 @@
 ## Decisions Log
 *(append one line per material decision made during implementation — this replaces needing to re-explain reasoning next session)*
 
+- Phase 3 CV: YOLOv8m (medium model for speed/accuracy), ByteTrack no re-ID (lightweight), center-based ROI assignment (point-in-polygon)
 - Phase 4 reconciliation: Uses Redis for observation windows (transient, TTL=600s), reconciles via consensus (≥2 frames), state machine enforced in service layer
 - Dev Auth: Using localStorage + mock JWT for Phase 2. Phase 5 replaces with real backend JWT
 - Camera heartbeat: Background thread polls every 5s, marks offline after timeout, triggers CAMERA_OFFLINE state on all inventory
