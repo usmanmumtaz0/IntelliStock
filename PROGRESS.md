@@ -3,7 +3,7 @@
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
 **Currently On:** `CV-001` — Video Ingestion (Phase 3)
-**Last Updated:** Phase 5 COMPLETE ✅ (All backend core done)
+**Last Updated:** Phase 4 COMPLETE ✅ (All 4/4 reconciliation tasks done)
 
 ---
 
@@ -27,10 +27,10 @@
 - [ ] `CV-005` Recorded-video replay mode
 
 ### EPIC 4 — Inventory Reconciliation
-- [ ] `INV-001` `observation_window` (Redis-backed rolling window)
-- [ ] `INV-002` Confidence/temporal reconciliation logic
-- [ ] `INV-003` Inventory state transition engine (state machine)
-- [ ] `INV-004` Camera heartbeat/offline detection
+- [x] `INV-001` `observation_window` (Redis-backed rolling window) — **Implemented, tested** ✅
+- [x] `INV-002` Confidence/temporal reconciliation logic — **ReconciliationEngine with thresholds** ✅
+- [x] `INV-003` Inventory state transition engine (state machine) — **6-state machine, strict transitions** ✅
+- [x] `INV-004` Camera heartbeat/offline detection — **CameraHeartbeatService background monitor** ✅
 
 ### EPIC 5 — Backend Core
 - [x] `BE-AUTH-001` JWT auth + RBAC middleware — **Dev mode ready** ✅
@@ -68,7 +68,9 @@
 ## Decisions Log
 *(append one line per material decision made during implementation — this replaces needing to re-explain reasoning next session)*
 
+- Phase 4 reconciliation: Uses Redis for observation windows (transient, TTL=600s), reconciles via consensus (≥2 frames), state machine enforced in service layer
 - Dev Auth: Using localStorage + mock JWT for Phase 2. Phase 5 replaces with real backend JWT
+- Camera heartbeat: Background thread polls every 5s, marks offline after timeout, triggers CAMERA_OFFLINE state on all inventory
 
 ## Known Issues / Gotchas
 *(append anything a future session needs to know to avoid re-discovering it)*
