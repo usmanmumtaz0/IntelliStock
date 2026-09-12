@@ -1,15 +1,26 @@
 """
-Inventory endpoints for querying state.
+Inventory endpoints for querying state and reconciliation testing.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.database import get_db
 from app.models.inventory import Inventory, InventoryStatus
 from app.schemas.inventory import InventoryResponse, InventoryListResponse
+from app.services.reconciliation import ReconciliationEngine
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+
+
+class ReconcileRequest(BaseModel):
+    """Request to reconcile an observation."""
+    camera_id: str
+    zone_id: str
+    product_id: str
+    observed_quantity: int
+    confidence: float
 
 
 @router.get("", response_model=List[InventoryListResponse])
@@ -63,3 +74,29 @@ def get_low_stock_items(db: Session = Depends(get_db)):
         Inventory.status.in_([InventoryStatus.LOW_STOCK, InventoryStatus.OUT_OF_STOCK])
     ).all()
     return inventory
+
+
+@router.post("/reconcile")
+def reconcile_observation(
+    request: ReconcileRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Test endpoint: reconcile an observation and update inventory state.
+    Used for Phase 4 testing and CV pipeline integration.
+    """
+    engine = ReconciliationEngine(db)
+    accepted, reason = engine.reconcile_observation(
+        camera_id=request.camera_id,
+        zone_id=request.zone_id,
+        product_id=request.product_id,
+        observed_quantity=request.observed_quantity,
+        confidence=request.confidence,
+    )
+    
+    return {
+        "accepted": accepted,
+        "reason": reason,
+        "request": request.dict(),
+    }
+

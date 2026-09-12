@@ -13,6 +13,7 @@ from app.database import init_db
 from app.api import cameras, products, inventory
 from app.api.websocket import router as ws_router
 from app.events import event_consumer
+from app.services.camera_heartbeat import get_heartbeat_service
 
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -37,7 +38,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start event consumer: {e}")
     
+    # Start camera heartbeat service
+    try:
+        heartbeat_service = get_heartbeat_service()
+        heartbeat_service.start()
+        logger.info("Camera heartbeat service started")
+    except Exception as e:
+        logger.error(f"Failed to start camera heartbeat service: {e}")
+    
     yield
+    
+    # Stop camera heartbeat service
+    try:
+        heartbeat_service = get_heartbeat_service()
+        heartbeat_service.stop()
+        logger.info("Camera heartbeat service stopped")
+    except Exception as e:
+        logger.error(f"Failed to stop camera heartbeat service: {e}")
     
     # Stop event consumer
     try:

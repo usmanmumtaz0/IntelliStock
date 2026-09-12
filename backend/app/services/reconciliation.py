@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
 from app.models.inventory import Inventory, InventoryStatus
+from app.models.product import Product
 from app.models.camera import Camera
 from app.services.observation_window import (
     Observation,
@@ -172,8 +173,8 @@ class ReconciliationEngine:
         conf = inv.confidence
         
         # Get product thresholds
-        product = self.db.query(__import__("app.models", fromlist=["Product"]).Product).filter(
-            __import__("app.models", fromlist=["Product"]).Product.id == inv.product_id
+        product = self.db.query(Product).filter(
+            Product.id == inv.product_id
         ).first()
         
         if not product:
