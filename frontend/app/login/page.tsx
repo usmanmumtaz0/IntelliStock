@@ -72,11 +72,10 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@intellistock.local"
+              placeholder="umerusman563@gmail.com"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
-            <p className="text-xs text-slate-500 mt-1">Try: admin@intellistock.local or user@intellistock.local</p>
           </div>
 
           {/* Password Field */}
@@ -93,8 +92,6 @@ export default function LoginPage() {
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
-            <p className="text-xs text-slate-500 mt-1">Try: admin123 or user123</p>
-          </div>
 
           {/* Submit Button */}
           <button
@@ -117,17 +114,25 @@ export default function LoginPage() {
         </form>
 
         {/* Development Info */}
-        <div className="mt-8 bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <p className="text-xs text-slate-300 font-semibold mb-2">📝 Demo Credentials (Dev Only)</p>
-          <div className="space-y-1 text-xs text-slate-400">
-            <p>
-              <span className="font-mono bg-slate-900 px-2 py-1 rounded">admin@intellistock.local</span> / admin123
-            </p>
-            <p>
-              <span className="font-mono bg-slate-900 px-2 py-1 rounded">user@intellistock.local</span> / user123
+        <div className="mt-8 bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <div>
+            <p className="text-xs text-slate-300 font-semibold mb-2">✨ Getting Started</p>
+            <p className="text-xs text-slate-400">
+              Don't have an account? Go to <Link href="/register" className="text-blue-400 hover:text-blue-300 underline">Register</Link> to create one with your custom password!
             </p>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Phase 5 will replace this with real JWT authentication</p>
+          <div>
+            <p className="text-xs text-slate-300 font-semibold mb-2">📝 Default Demo Accounts</p>
+            <div className="space-y-1 text-xs text-slate-500">
+              <p className="font-mono bg-slate-900 px-2 py-1 rounded">
+                umerusman563@gmail.com / admin123 (Admin)
+              </p>
+              <p className="font-mono bg-slate-900 px-2 py-1 rounded">
+                umerusman563@gmail.com / user123 (User)
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">⚠️ Phase 5 will replace this with real JWT authentication</p>
         </div>
       </div>
     </div>

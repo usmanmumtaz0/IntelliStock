@@ -5,6 +5,7 @@
 
 const TOKEN_KEY = 'intellistock_token'
 const USER_KEY = 'intellistock_user'
+const USERS_DB_KEY = 'intellistock_users_db'
 
 export interface User {
   id: string
@@ -17,6 +18,45 @@ export interface AuthResponse {
   access_token: string
   token_type: string
   user: User
+}
+
+// Initialize mock users database in localStorage
+function initializeUsersDB() {
+  if (typeof window !== 'undefined') {
+    const existing = localStorage.getItem(USERS_DB_KEY)
+    if (!existing) {
+      const defaultUsers = {
+        'umerusman563@gmail.com_admin': {
+          email: 'umerusman563@gmail.com',
+          password: 'admin123',
+          username: 'admin',
+          role: 'admin',
+        },
+        'umerusman563@gmail.com_user': {
+          email: 'umerusman563@gmail.com',
+          password: 'user123',
+          username: 'user',
+          role: 'user',
+        },
+      }
+      localStorage.setItem(USERS_DB_KEY, JSON.stringify(defaultUsers))
+    }
+  }
+}
+
+// Get all registered users
+function getUsersDB(): Record<string, any> {
+  if (typeof window === 'undefined') return {}
+  initializeUsersDB()
+  const db = localStorage.getItem(USERS_DB_KEY)
+  return db ? JSON.parse(db) : {}
+}
+
+// Save updated users database
+function saveUsersDB(users: Record<string, any>) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(USERS_DB_KEY, JSON.stringify(users))
+  }
 }
 
 /**
@@ -82,59 +122,23 @@ export async function mockLogin(email: string, password: string): Promise<AuthRe
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 500))
 
-  // Mock users for development
-  // Admin: umerusman563@gmail.com / admin123
-  if (email === 'umerusman563@gmail.com' && password === 'admin123') {
-    return {
-      access_token: 'mock_token_admin_' + Date.now(),
-      token_type: 'bearer',
-      user: {
-        id: '1',
-        email: 'umerusman563@gmail.com',
-        username: 'admin',
-        role: 'admin',
-      },
-    }
-  }
+  initializeUsersDB()
+  const usersDB = getUsersDB()
 
-  // User: umerusman563@gmail.com / user123
-  if (email === 'umerusman563@gmail.com' && password === 'user123') {
-    return {
-      access_token: 'mock_token_user_' + Date.now(),
-      token_type: 'bearer',
-      user: {
-        id: '2',
-        email: 'umerusman563@gmail.com',
-        username: 'user',
-        role: 'user',
-      },
-    }
-  }
-
-  // Also support legacy test accounts
-  if (email === 'admin@intellistock.local' && password === 'admin123') {
-    return {
-      access_token: 'mock_token_admin_' + Date.now(),
-      token_type: 'bearer',
-      user: {
-        id: '1',
-        email: 'admin@intellistock.local',
-        username: 'admin',
-        role: 'admin',
-      },
-    }
-  }
-
-  if (email === 'user@intellistock.local' && password === 'user123') {
-    return {
-      access_token: 'mock_token_user_' + Date.now(),
-      token_type: 'bearer',
-      user: {
-        id: '2',
-        email: 'user@intellistock.local',
-        username: 'user',
-        role: 'user',
-      },
+  // Find user by email and password
+  for (const [key, userRecord] of Object.entries(usersDB)) {
+    const user = userRecord as any
+    if (user.email === email && user.password === password) {
+      return {
+        access_token: 'mock_token_' + Date.now(),
+        token_type: 'bearer',
+        user: {
+          id: user.email + '_' + user.role,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+        },
+      }
     }
   }
 
@@ -142,29 +146,52 @@ export async function mockLogin(email: string, password: string): Promise<AuthRe
 }
 
 /**
- * Mock register for development (Phase 5 will implement real registration)
+ * Mock register for development - creates a new user or updates existing
  */
 export async function mockRegister(
   email: string,
   username: string,
-  password: string
+  password: string,
+  role: 'admin' | 'user' | 'viewer' = 'user'
 ): Promise<AuthResponse> {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 500))
 
   // Simple validation
-  if (!email.includes('@') || password.length < 6) {
-    throw new Error('Invalid email or password too short')
+  if (!email.includes('@')) {
+    throw new Error('Invalid email format')
   }
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters')
+  }
+  if (username.length < 3) {
+    throw new Error('Username must be at least 3 characters')
+  }
+
+  initializeUsersDB()
+  const usersDB = getUsersDB()
+
+  // Create user key (email + role combination for uniqueness)
+  const userKey = email + '_' + role
+
+  // Store or update user
+  usersDB[userKey] = {
+    email,
+    password,
+    username,
+    role,
+  }
+
+  saveUsersDB(usersDB)
 
   return {
     access_token: 'mock_token_' + Date.now(),
     token_type: 'bearer',
     user: {
-      id: Date.now().toString(),
+      id: userKey,
       email,
       username,
-      role: 'user',
+      role,
     },
   }
 }

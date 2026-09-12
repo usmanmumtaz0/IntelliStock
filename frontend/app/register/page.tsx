@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState<'user' | 'admin'>('user')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -40,7 +41,7 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const response = await mockRegister(email, username, password)
+      const response = await mockRegister(email, username, password, role)
       setToken(response.access_token)
       setUser(response.user)
 
@@ -141,6 +142,22 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Role Selection */}
+          <div>
+            <label htmlFor="role" className="block text-sm font-medium text-slate-700 mb-2">
+              Account Role
+            </label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="user">User (Regular Access)</option>
+              <option value="admin">Admin (Full Access)</option>
+            </select>
+          </div>
+
           {/* Submit Button */}
           <button
             type="submit"
@@ -165,6 +182,9 @@ export default function RegisterPage() {
         <div className="mt-8 bg-slate-800 border border-slate-700 rounded-lg p-4">
           <p className="text-xs text-slate-300">
             This is a development authentication system. Phase 5 will integrate with backend JWT authentication.
+          </p>
+          <p className="text-xs text-slate-400 mt-2">
+            💾 Your credentials are saved in browser localStorage. They persist across sessions.
           </p>
         </div>
       </div>
