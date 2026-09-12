@@ -1,0 +1,11 @@
+# Computer Vision Module Requirements
+ultralytics==8.0.211  # YOLO detection
+opencv-python==4.8.1.78  # Video processing, image utilities
+numpy==1.24.3  # Numerical computing
+torch==2.0.1  # PyTorch (YOLO dependency)
+torchvision==0.15.2  # Vision utilities
+bytetrack==2.2  # ByteTrack object tracking
+scipy==1.11.4  # Point-in-polygon, spatial utilities
+Pillow==10.0.1  # Image processing
+python-dotenv==1.0.0  # Environment variables
+requests==2.31.0  # HTTP requests to backend
