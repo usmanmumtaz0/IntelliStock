@@ -8,6 +8,8 @@ from app.models.inventory import Inventory, InventoryStatus
 from app.models.event import InventoryEvent, EventType
 from app.models.agent_run import AgentRun
 from app.models.audit_log import AuditLog
+from app.models.inventory_history import InventoryHistory, InventoryChangeType
+from app.models.alert import Alert, AlertType, AlertSeverity, AlertStatus
 
 __all__ = [
     "Base",
@@ -23,5 +25,11 @@ __all__ = [
     "EventType",
     "AgentRun",
     "AuditLog",
+    "InventoryHistory",
+    "InventoryChangeType",
+    "Alert",
+    "AlertType",
+    "AlertSeverity",
+    "AlertStatus",
 ]
 

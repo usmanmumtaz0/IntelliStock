@@ -14,7 +14,7 @@ from app.core.health import check_database, check_redis
 from app.core.rate_limiter import check_rate_limit
 from app.core.security import decode_access_token
 from app.database import init_db
-from app.api import cameras, products, inventory, zones, alerts, events, dashboard, agents, auth
+from app.api import cameras, products, inventory, zones, alerts, events, dashboard, agents, auth, inventory_history, alert_api
 from app.api.websocket import router as ws_router
 from app.events import event_consumer
 from app.services.camera_heartbeat import get_heartbeat_service
@@ -111,6 +111,8 @@ app.include_router(auth.router)
 app.include_router(cameras.router)
 app.include_router(products.router)
 app.include_router(inventory.router)
+app.include_router(inventory_history.router)
+app.include_router(alert_api.router)
 app.include_router(zones.router)
 app.include_router(alerts.router)
 app.include_router(events.router)

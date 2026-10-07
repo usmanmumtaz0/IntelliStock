@@ -16,6 +16,7 @@ from app.services.observation_window import (
     ObservationWindow,
     get_observation_window,
 )
+from app.services.inventory_history_service import InventoryHistoryService
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,18 @@ class ReconciliationEngine:
             
             self.db.commit()
             
-            if prev_qty != quantity_estimate:
+            if prev_qty is not None and prev_qty != quantity_estimate:
+                # Record history for quantity changes
+                history_service = InventoryHistoryService(self.db)
+                history_service.record_reconciliation(
+                    zone_id=zone_id,
+                    product_id=product_id,
+                    previous_qty=prev_qty,
+                    reconciled_qty=quantity_estimate,
+                    event_id=f"reconcile-{datetime.utcnow().timestamp()}",
+                    confidence=confidence,
+                )
+                
                 status_val = inv.status.value if inv.status else "unknown"
                 logger.info(
                     f"Inventory updated: {zone_id}/{product_id} "
