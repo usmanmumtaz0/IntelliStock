@@ -10,6 +10,7 @@ from app.models.agent_run import AgentRun
 from app.models.audit_log import AuditLog
 from app.models.inventory_history import InventoryHistory, InventoryChangeType
 from app.models.alert import Alert, AlertType, AlertSeverity, AlertStatus
+from app.models.system_health import SystemHealthMetric, PerformanceLog, ComponentStatus, HealthCheckType
 
 __all__ = [
     "Base",
@@ -31,5 +32,9 @@ __all__ = [
     "AlertType",
     "AlertSeverity",
     "AlertStatus",
+    "SystemHealthMetric",
+    "PerformanceLog",
+    "ComponentStatus",
+    "HealthCheckType",
 ]
 
