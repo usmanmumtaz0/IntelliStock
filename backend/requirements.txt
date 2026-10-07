@@ -16,9 +16,19 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 
+# Computer Vision
+opencv-python==4.8.1.78
+ultralytics==8.0.207
+numpy==1.24.3
+
 # Testing
 pytest==7.4.3
 
 # Utilities
 python-dotenv==1.0.0
+
+# AI / LLM Framework
+langchain==0.1.10
+langgraph==0.0.26
+openai==1.6.1
 

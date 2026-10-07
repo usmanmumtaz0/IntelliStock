@@ -1,284 +1,439 @@
-# IntelliStock Agent — AI-Powered Inventory Intelligence Platform
+# IntelliStock Agent — AI-Powered Shelf Inventory Monitoring
 
-A Final Year Project (FYP) implementing an intelligent inventory monitoring system using computer vision, reconciliation logic, and LLM-based agents.
+**Status:** Phase 6/8 (MVP Core Complete)  
+**Build:** ✅ Backend | ✅ Frontend | ✅ API Layer | ✅ AI Agents | 🔄 Hardening
 
-## Project Overview
+---
 
-**Pipeline:** Camera → CV (YOLO+ByteTrack) → ROI/Shelf Assignment → Observation Window → Reconciliation Engine → Trusted Inventory State → Events → Rule Engine → LangGraph Agents → FastAPI → WebSocket → Next.js Dashboard
+## Overview
 
-**Core Principle:** YOLO output is an *observation*, not truth. Only the Reconciliation Engine, after confidence/temporal/tracking checks, may update trusted Inventory State.
+IntelliStock Agent is an AI-powered inventory monitoring system that uses computer vision, probabilistic reconciliation, and LLM-based agents to provide trusted, real-time inventory state for retail shelves.
 
-## Architecture
+**Key Features:**
+- 📷 Real-time shelf monitoring with YOLO + ByteTrack
+- 🔄 Probabilistic reconciliation engine (not raw detections)
+- 📊 Dashboard with live metrics and alerts
+- 🤖 LangGraph AI agents for insights and anomaly detection
+- 🔐 State machine inventory validation
+- 🌐 WebSocket real-time updates
 
-- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy
-- **Database:** PostgreSQL (source of truth), Redis (cache/events/transient)
-- **Frontend:** Next.js 14, TypeScript, Tailwind CSS
-- **CV:** Ultralytics YOLO, OpenCV, ByteTrack
-- **AI:** LangGraph with configurable LLM provider
-- **Deployment:** Local development with Docker Compose (production-ready structure)
+**Tech Stack:**
+- Frontend: React 19 + Vite + TanStack Router
+- Backend: FastAPI + SQLAlchemy + PostgreSQL
+- CV: YOLOv8 + ByteTrack + OpenCV
+- AI: LangGraph + (OpenAI/Claude configurable)
+- Cache: Redis (pub/sub + events)
+- Deployment: Docker Compose
 
-## Prerequisites
-
-### Required
-- **Python 3.11+** — [Download](https://www.python.org/downloads/)
-- **PostgreSQL 16** — [Download](https://www.postgresql.org/download/)
-- **Redis** — [Download](https://github.com/microsoftarchive/redis/releases) or [Memurai](https://www.memurai.com/)
-- **Node.js 20+** — [Download](https://nodejs.org/)
-- **npm** — Included with Node.js
-
-### Verify Installation
-```powershell
-python --version      # Should show Python 3.11+
-psql --version        # Should show PostgreSQL 16
-redis-cli --version   # Should show Redis version
-node --version        # Should show Node.js 20+
-npm --version         # Should show npm 11+
-```
+---
 
 ## Quick Start
 
-### 1. Clone/Navigate to Project
-```powershell
-cd d:\intellistock 1
+### Prerequisites
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 13+
+- Redis 6+
+- Docker & Docker Compose (optional)
+
+### Development Setup
+
+**1. Clone and setup:**
+```bash
+git clone <repo>
+cd intellistock-agent
 ```
 
-### 2. Set Up Environment
-Copy `.env.example` to `.env` and update with your local credentials:
-```powershell
-Copy-Item .env.example .env
-```
-
-Edit `.env`:
-- `DATABASE_URL` — Update password to match your PostgreSQL installation
-- `JWT_SECRET` — Use provided dev key or generate a new one
-
-### 3. Start PostgreSQL
-Ensure PostgreSQL service is running:
-```powershell
-# On Windows, PostgreSQL typically starts automatically
-# Verify: psql -U postgres -d intellistock -c "SELECT NOW();"
-```
-
-### 4. Start Redis
-```powershell
-# If installed as service, ensure it's running
-# Or start manually from installation directory:
-redis-server
-```
-
-### 5. Start Backend (Python/FastAPI)
-```powershell
+**2. Backend:**
+```bash
 cd backend
-python -m venv venv  # Create virtual environment (first time only)
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt  # Install dependencies (first time only)
-uvicorn app.main:app --reload --host localhost --port 8000
+python -m venv venv
+source venv/bin/activate  # Windows: .\venv\Scripts\Activate
+pip install -r requirements.txt
+
+# Copy environment template
+cp ../.env.example .env
+
+# Run migrations (if needed)
+alembic upgrade head
+
+# Start server
+python app/main.py
 ```
+Backend: `http://localhost:8000`  
+API Docs: `http://localhost:8000/docs`
 
-Backend will be available at: **http://localhost:8000**
-
-### 6. Start Frontend (Next.js)
-In a **new terminal**:
-```powershell
+**3. Frontend:**
+```bash
 cd frontend
-npm install  # Install dependencies (first time only)
+npm install
 npm run dev
 ```
+Frontend: `http://localhost:5173`
 
-Frontend will be available at: **http://localhost:3000**
+### Docker Compose (Full Stack)
 
-## Verification
-
-### Backend Health Check
-```powershell
-# In browser or PowerShell:
-Invoke-WebRequest http://localhost:8000/health | ConvertTo-Json
+```bash
+docker-compose up -d
 ```
 
-Expected response:
-```json
-{
-  "status": "ok",
-  "database": "connected",
-  "redis": "connected"
-}
+Services:
+- FastAPI backend: `http://localhost:8000`
+- Frontend: `http://localhost:3000`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Retail Shelf Environment                           │
+│  ├─ Cameras (RTSP/USB/File streams)                │
+│  └─ Physical products & zones                       │
+└────────────────────┬────────────────────────────────┘
+                     │ Video frames
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│  Computer Vision Pipeline                          │
+│  ├─ YOLOv8 detection (per frame)                  │
+│  ├─ ByteTrack (persistent IDs)                    │
+│  └─ ROI assignment (center-based polygon)         │
+└────────────────────┬────────────────────────────────┘
+                     │ Observations (temporary)
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│  Reconciliation Engine                              │
+│  ├─ Redis observation window (TTL=600s)           │
+│  ├─ Confidence checks + temporal validation       │
+│  └─ State machine transitions (6 states)          │
+└────────────────────┬────────────────────────────────┘
+                     │ Verified inventory state changes
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│  PostgreSQL (Source of Truth)                       │
+│  ├─ Inventory (current state)                      │
+│  ├─ Events (audit trail)                           │
+│  └─ Alerts (business state)                        │
+└────────────┬──────────────────────────────┬─────────┘
+             │ State changes                │ Queries
+             ▼                              ▼
+         ┌────────┐                    ┌─────────────┐
+         │ Redis  │◄───┐              │  FastAPI    │
+         │ Pub/Sub│    │              │  REST API   │
+         └────────┘    └──────┐       └─────────────┘
+             │                │           │
+             └────────┬──────────────┬────┘
+                      ▼              ▼
+              ┌──────────────────────────────┐
+              │  LangGraph AI Agents         │
+              │  ├─ Supervisor (routing)     │
+              │  ├─ Insight (analysis)       │
+              │  ├─ Anomaly (detection)      │
+              │  └─ Notification (alerts)    │
+              └──────────────┬───────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │  Frontend (React + Vite)     │
+              │  ├─ Dashboard                │
+              │  ├─ Inventory view           │
+              │  ├─ Alerts                   │
+              │  └─ Settings                 │
+              └──────────────────────────────┘
 ```
 
-### Frontend
-Open **http://localhost:3000** in browser. You should see:
-- Navigation bar: "IntelliStock Agent" with menu items (Dashboard, Shelves, Inventory, Alerts, Settings)
-- Welcome message on homepage
+---
 
-### Run Tests
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-$env:PYTHONPATH = "."
-pytest tests/ -v
-```
-
-## Project Structure
+## File Structure
 
 ```
 intellistock-agent/
 ├── backend/
 │   ├── app/
 │   │   ├── api/              # REST endpoints
+│   │   │   ├── cameras.py
+│   │   │   ├── products.py
+│   │   │   ├── inventory.py
+│   │   │   ├── zones.py
+│   │   │   ├── alerts.py
+│   │   │   ├── events.py
+│   │   │   ├── dashboard.py
+│   │   │   ├── agents.py
+│   │   │   ├── websocket.py
+│   │   │   └── __init__.py
+│   │   ├── agents/           # LangGraph AI agents
+│   │   │   ├── supervisor.py
+│   │   │   ├── insight_agent.py
+│   │   │   ├── anomaly_agent.py
+│   │   │   ├── notification_agent.py
+│   │   │   └── __init__.py
+│   │   ├── cv/               # Computer vision (shared with cv/)
+│   │   ├── core/             # Config, health checks
+│   │   ├── database/         # SQLAlchemy setup
+│   │   ├── events/           # Event pub/sub
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── repositories/     # Data access layer
+│   │   ├── schemas/          # Pydantic schemas
 │   │   ├── services/         # Business logic
-│   │   ├── repositories/     # Database access
-│   │   ├── models/           # SQLAlchemy ORM models
-│   │   ├── schemas/          # Pydantic request/response schemas
-│   │   ├── events/           # Event definitions
-│   │   ├── websocket/        # WebSocket handlers
-│   │   ├── database/         # Database configuration
-│   │   ├── core/             # Core utilities (config, health)
-│   │   └── main.py           # FastAPI application
-│   ├── tests/                # Pytest test suite
-│   ├── requirements.txt      # Python dependencies
-│   ├── pytest.ini            # Pytest configuration
-│   ├── Dockerfile            # Container image
-│   └── venv/                 # Python virtual environment (local)
+│   │   ├── websocket/        # WebSocket manager
+│   │   └── main.py           # FastAPI app
+│   ├── tests/                # Unit & integration tests
+│   ├── requirements.txt
+│   ├── pytest.ini
+│   ├── venv/                 # Virtual environment
+│   └── Dockerfile
 ├── frontend/
-│   ├── app/                  # Next.js app directory
-│   ├── components/           # React components
-│   ├── public/               # Static assets
-│   ├── package.json          # Node.js dependencies
-│   ├── next.config.js        # Next.js configuration
-│   ├── tsconfig.json         # TypeScript configuration
-│   ├── tailwind.config.js    # Tailwind CSS configuration
-│   └── Dockerfile            # Container image
-├── cv/                       # Computer Vision pipeline (Phase 3+)
-├── docs/                     # Documentation and architecture
-├── docker-compose.yml        # Docker Compose configuration (for production)
-├── .env                      # Environment variables (git-ignored)
-├── .env.example              # Environment template (committed)
-├── CLAUDE.md                 # Architecture rules (locked)
-├── PROGRESS.md               # Phase-by-phase progress tracker
+│   ├── src/
+│   │   ├── routes/           # TanStack Router pages
+│   │   ├── components/       # React components
+│   │   ├── lib/              # API client, store, utils
+│   │   └── styles.css
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   └── public/
+├── cv/                       # Standalone CV pipeline
+│   ├── pipeline.py
+│   ├── yolo_detector.py
+│   ├── byte_tracker.py
+│   ├── roi_assignment.py
+│   └── test_pipeline.py
+├── docs/
+│   ├── API_REFERENCE.md      # API documentation
+│   ├── DEPLOYMENT.md         # Deployment guide
+│   ├── ARCHITECTURE.md       # System design
+│   └── ...
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── PROGRESS.md               # Task progress tracker
+├── CLAUDE.md                 # Development guidelines
 └── README.md                 # This file
 ```
 
-## Development Workflow
+---
 
-### Adding a New Endpoint
-1. Create schema in `backend/app/schemas/`
-2. Create route in `backend/app/api/`
-3. Create service in `backend/app/services/`
-4. Create repository in `backend/app/repositories/` (for DB access)
-5. Write tests in `backend/tests/`
-6. Update API documentation in `docs/`
+## API Endpoints
 
-### Database Schema Changes
-Use Alembic for migrations (Phase 6):
-```powershell
-cd backend
-alembic revision --autogenerate -m "Add new table"
-alembic upgrade head
-```
+See [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) for complete API documentation.
 
-### Committing Code
-Use conventional commits:
-- `feat:` — New feature
-- `fix:` — Bug fix
-- `test:` — Test addition/update
-- `docs:` — Documentation
-- `chore:` — Maintenance
+### Key Endpoints
 
-Example: `git commit -m "feat: Add inventory state machine"`
+**Dashboard:**
+- `GET /api/v1/dashboard/metrics` — KPI aggregation
+- `GET /api/v1/dashboard/store-info` — Store metadata
 
-## Environment Variables
+**Inventory:**
+- `GET /api/v1/zones` — List shelf zones
+- `GET /api/v1/inventory` — Inventory state
+- `POST /api/v1/inventory/reconcile` — Reconcile observation
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `DATABASE_URL` | PostgreSQL connection | `postgresql://postgres:password@localhost:5432/intellistock` |
-| `REDIS_URL` | Redis connection | `redis://localhost:6379/0` |
-| `JWT_SECRET` | JWT signing key | `local-dev-secret-key-change-in-production` |
-| `API_HOST` | Backend listen address | `localhost` |
-| `API_PORT` | Backend port | `8000` |
-| `NEXT_PUBLIC_API_URL` | Frontend API endpoint | `http://localhost:8000/api/v1` |
-| `LOG_LEVEL` | Logging verbosity | `DEBUG` or `INFO` |
+**Alerts & Events:**
+- `GET /api/v1/alerts` — Active alerts
+- `GET /api/v1/events` — Activity feed
+- `POST /api/v1/alerts/{id}/acknowledge` — Mark acknowledged
 
-## Troubleshooting
+**AI Agents:**
+- `GET /api/v1/agents/runs` — Agent execution history
+- `GET /api/v1/agents/stats` — Agent performance stats
 
-### "Cannot connect to PostgreSQL"
-- Verify PostgreSQL is running: `psql -U postgres -c "SELECT 1;"`
-- Check `DATABASE_URL` in `.env` — password must be URL-encoded (e.g., `#` → `%23`)
-- Verify database exists: `psql -U postgres -c "CREATE DATABASE intellistock;"`
-
-### "Redis connection refused"
-- Verify Redis is running: `redis-cli ping` (should return `PONG`)
-- Check `REDIS_URL` in `.env`
-- Ensure Redis service is started (or run `redis-server` manually)
-
-### "Module not found" errors (Python)
-- Ensure virtual environment is activated: `.\venv\Scripts\Activate.ps1`
-- Reinstall dependencies: `pip install -r requirements.txt`
-- Set `PYTHONPATH`: `$env:PYTHONPATH = "."`
-
-### "Port 8000/3000 already in use"
-- Check what's running: `netstat -ano | findstr :8000`
-- Kill process: `taskkill /PID <PID> /F`
-- Or change port in `.env` and restart
-
-## Testing
-
-### Run All Tests
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-$env:PYTHONPATH = "."
-pytest tests/ -v
-```
-
-### Run Specific Test
-```powershell
-pytest tests/test_health.py::test_health_endpoint -v
-```
-
-### Run with Coverage
-```powershell
-pytest tests/ --cov=app --cov-report=html
-# Opens htmlcov/index.html in browser
-```
-
-## Project Phases
-
-- **Phase 1 (COMPLETE):** Project Foundation (monorepo, Docker, health checks)
-- **Phase 2:** Frontend Shell (pages, components, protected routes)
-- **Phase 3:** Computer Vision (YOLO, ByteTrack, ROI assignment, video replay)
-- **Phase 4:** Inventory Reconciliation (observation window, state machine, confidence/temporal logic)
-- **Phase 5:** Backend Core (database models, REST API, authentication)
-- **Phase 6:** Event System (Redis pub/sub, rule engine, WebSocket)
-- **Phase 7-8:** AI Agents & Integration (LangGraph, end-to-end pipeline)
-- **Phase 9-15:** Hardening, Analytics, Copilot, Documentation
-
-## Documentation
-
-- **`CLAUDE.md`** — Architecture rules and locked tech stack (read first every session)
-- **`PROGRESS.md`** — Current phase and completion status
-- **`IntelliStock_Agent_Architecture_Review_and_Plan.md`** — Full architecture review and master backlog
-- **`docs/`** — API reference, database schema, sequence diagrams (added as phases complete)
-
-## Contributing
-
-1. Read `CLAUDE.md` and `PROGRESS.md`
-2. Check which task is "Currently On" in `PROGRESS.md`
-3. Work on that task only (no jumping ahead)
-4. Write tests alongside implementation
-5. Run `pytest` before committing
-6. Commit with conventional prefix: `feat:`, `fix:`, `test:`, `docs:`, `chore:`
-7. Update `PROGRESS.md` and set "Currently On" to next task
-8. Open PR to `develop` branch (do NOT commit to `main`)
-
-## License
-
-This project is part of a Final Year Project (FYP) for academic evaluation. See `LICENSE` file for details.
-
-## Contact
-
-For questions or issues, refer to the architecture documentation in `docs/` or the project README.
+**Real-time:**
+- `WS /ws` — WebSocket event stream
 
 ---
 
-**Last Updated:** 2026-08-12  
-**Current Phase:** 1 (Foundation)  
-**Status:** ✅ Complete — Backend health checks + frontend running, smoke tests passing
+## Configuration
+
+### Backend (.env)
+
+```env
+# API
+API_HOST=0.0.0.0
+API_PORT=8000
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/intellistock
+
+# Cache
+REDIS_URL=redis://localhost:6379/0
+
+# Logging
+LOG_LEVEL=INFO
+
+# CV Pipeline
+CV_CONFIDENCE_THRESHOLD=0.6
+CV_FPS_SAMPLING=2
+
+# LLM (Phase 7+)
+LLM_PROVIDER=openai  # or "anthropic"
+OPENAI_API_KEY=sk-...
+```
+
+### Frontend (.env)
+
+```env
+VITE_API_URL=http://localhost:8000/api/v1
+VITE_WS_URL=ws://localhost:8000/ws
+```
+
+---
+
+## Development Workflow
+
+1. **Read `CLAUDE.md`** — Development guidelines and non-negotiables
+2. **Check `PROGRESS.md`** — Current task status
+3. **Work from task list** — Don't skip ahead
+4. **After each task:**
+   - Run tests: `pytest tests/`
+   - Test manually (see verification below)
+   - Update `PROGRESS.md`
+   - Commit: `git commit -m "feat: <task>"`
+
+---
+
+## Testing
+
+### Backend Tests
+
+```bash
+cd backend
+pytest tests/
+pytest tests/test_reconciliation.py -v
+pytest tests/test_health.py -v
+```
+
+### Frontend Tests (Playwright, if added)
+
+```bash
+cd frontend
+npm run test
+```
+
+---
+
+## Deployment
+
+### Docker Compose (Recommended)
+
+```bash
+docker-compose up -d
+```
+
+Automatically starts:
+- PostgreSQL (port 5432)
+- Redis (port 6379)
+- Backend (port 8000)
+- Frontend (port 3000)
+
+### Manual Deployment
+
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for production deployment guide.
+
+---
+
+## Monitoring & Debugging
+
+### Backend Logs
+```bash
+docker-compose logs -f backend
+```
+
+### Database
+```bash
+psql -h localhost -U postgres -d intellistock
+SELECT * FROM inventory;
+```
+
+### Redis
+```bash
+redis-cli
+> KEYS *
+> GET observation_window:A-1
+```
+
+### API Documentation
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+---
+
+## Troubleshooting
+
+### Frontend won't connect to backend
+- Check backend is running: `curl http://localhost:8000/health`
+- Verify `VITE_API_URL` in `.env`
+- Check browser console for CORS errors
+
+### Database migration errors
+```bash
+cd backend
+alembic downgrade -1
+alembic upgrade head
+```
+
+### Redis connection failed
+```bash
+redis-cli ping
+# Should return "PONG"
+```
+
+### CV pipeline not detecting
+- Check camera source is accessible
+- Verify ROI polygons are valid
+- Increase `CV_CONFIDENCE_THRESHOLD` if too strict
+
+---
+
+## Phase Status
+
+| Phase | Epic | Status | Key Tasks |
+|-------|------|--------|-----------|
+| 1 | Foundation | ✅ Complete | Monorepo, config, CI |
+| 2 | Frontend Shell | ✅ Complete | Pages, auth layouts |
+| 3 | Computer Vision | ✅ Complete | YOLO, ByteTrack, ROI |
+| 4 | Reconciliation | ✅ Complete | Engine, state machine |
+| 5 | Backend Core | ✅ Complete | Auth, DB, REST, events |
+| 6 | E2E Integration | ✅ Complete | API layer, frontend wired |
+| 7 | AI Agents | ✅ Complete | Supervisor, insight, anomaly, notification |
+| 8 | Hardening & Docs | 🔄 In Progress | Security, tests, docs |
+
+---
+
+## Next Steps
+
+### Phase 8 (Remaining)
+- [ ] Security hardening (rate limiting, CORS, audit logs)
+- [ ] Test coverage audit
+- [ ] Final documentation
+- [ ] Evaluation report for FYP
+
+### Post-MVP
+- [ ] Multi-store support
+- [ ] Advanced forecasting
+- [ ] Mobile app
+- [ ] Cloud deployment (AWS/GCP)
+
+---
+
+## License
+
+Proprietary — IntelliStock Final Year Project
+
+---
+
+## Support
+
+For issues or questions:
+1. Check `PROGRESS.md` for current status
+2. Review `docs/` for detailed guides
+3. Check backend logs: `docker-compose logs backend`
+4. Review API docs: `http://localhost:8000/docs`
+
+---
+
+**Last Updated:** October 7, 2026  
+**Maintainers:** FYP Team  
+**Contact:** claude.md for guidelines
+

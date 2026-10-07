@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.health import check_database, check_redis
 from app.database import init_db
-from app.api import cameras, products, inventory
+from app.api import cameras, products, inventory, zones, alerts, events, dashboard, agents
 from app.api.websocket import router as ws_router
 from app.events import event_consumer
 from app.services.camera_heartbeat import get_heartbeat_service
@@ -87,6 +87,11 @@ app.add_middleware(
 app.include_router(cameras.router)
 app.include_router(products.router)
 app.include_router(inventory.router)
+app.include_router(zones.router)
+app.include_router(alerts.router)
+app.include_router(events.router)
+app.include_router(dashboard.router)
+app.include_router(agents.router)
 app.include_router(ws_router)
 
 
