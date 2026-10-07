@@ -6,6 +6,8 @@ from app.models.zone import ShelfZone
 from app.models.product import Product
 from app.models.inventory import Inventory, InventoryStatus
 from app.models.event import InventoryEvent, EventType
+from app.models.agent_run import AgentRun
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "Base",
@@ -19,5 +21,7 @@ __all__ = [
     "InventoryStatus",
     "InventoryEvent",
     "EventType",
+    "AgentRun",
+    "AuditLog",
 ]
 

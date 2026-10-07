@@ -3,14 +3,18 @@ IntelliStock Agent — FastAPI main application.
 """
 import logging
 from contextlib import asynccontextmanager
+from typing import Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.health import check_database, check_redis
+from app.core.rate_limiter import check_rate_limit
+from app.core.security import decode_access_token
 from app.database import init_db
-from app.api import cameras, products, inventory, zones, alerts, events, dashboard, agents
+from app.api import cameras, products, inventory, zones, alerts, events, dashboard, agents, auth
 from app.api.websocket import router as ws_router
 from app.events import event_consumer
 from app.services.camera_heartbeat import get_heartbeat_service
@@ -74,16 +78,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limit middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next: Callable):
+    """Rate limiting middleware."""
+    # Skip rate limiting for health checks
+    if request.url.path in ["/health", "/api/v1/health"]:
+        return await call_next(request)
+    
+    try:
+        await check_rate_limit(request)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.detail},
+        )
+    
+    return await call_next(request)
+
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict to frontend origin in production
+    allow_origins=settings.CORS_ORIGINS if hasattr(settings, "CORS_ORIGINS") else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(cameras.router)
 app.include_router(products.router)
 app.include_router(inventory.router)
