@@ -1,7 +1,7 @@
 # IntelliStock Agent — AI-Powered Shelf Inventory Monitoring
 
-**Status:** Phase 6/8 (MVP Core Complete)  
-**Build:** ✅ Backend | ✅ Frontend | ✅ API Layer | ✅ AI Agents | 🔄 Hardening
+**Status:** Backend hardening implemented and verified
+**Build:** ✅ Backend | ⚠️ Frontend source absent from this checkout | ✅ API Layer | ✅ AI Agents | 🔄 Verification
 
 ---
 
@@ -44,7 +44,7 @@ git clone <repo>
 cd intellistock-agent
 ```
 
-**2. Backend:**
+**2. Configure and run the backend:**
 ```bash
 cd backend
 python -m venv venv
@@ -53,35 +53,39 @@ pip install -r requirements.txt
 
 # Copy environment template
 cp ../.env.example .env
+# Edit .env: set DATABASE_URL and generate a unique JWT_SECRET (32+ chars)
 
-# Run migrations (if needed)
+# Apply reviewed migrations
 alembic upgrade head
 
+# Securely create the initial administrator (interactive password prompt)
+python -m scripts.create_admin --email you@example.com --username admin
+
 # Start server
-python app/main.py
+uvicorn app.main:app --reload
 ```
 Backend: `http://localhost:8000`  
 API Docs: `http://localhost:8000/docs`
 
-**3. Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Frontend: `http://localhost:5173`
+**3. Frontend:** The current repository checkout does not contain the documented
+`frontend/` source. Restore the frontend project before enabling the optional
+Compose `frontend` profile. The backend wire contract is documented in
+[`docs/API_REFERENCE.md`](docs/API_REFERENCE.md).
 
-### Docker Compose (Full Stack)
+### Docker Compose (Backend Infrastructure)
 
 ```bash
-docker-compose up -d
+docker compose up -d postgres redis backend
 ```
 
 Services:
 - FastAPI backend: `http://localhost:8000`
-- Frontend: `http://localhost:3000`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
+
+Compose requires `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
+`DATABASE_URL_DOCKER`, and `JWT_SECRET` in the untracked `.env` file. The
+frontend service is profile-gated because its source is not present.
 
 ---
 
@@ -240,7 +244,7 @@ See [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) for complete API documentat
 - `GET /api/v1/agents/stats` — Agent performance stats
 
 **Real-time:**
-- `WS /ws` — WebSocket event stream
+- `WS /ws/inventory` — authenticated WebSocket event stream
 
 ---
 
@@ -250,14 +254,23 @@ See [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) for complete API documentat
 
 ```env
 # API
+APP_ENV=development
 API_HOST=0.0.0.0
 API_PORT=8000
 
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/intellistock
+DATABASE_URL=postgresql://DB_USER:URL_ENCODED_PASSWORD@localhost:5432/intellistock
 
 # Cache
 REDIS_URL=redis://localhost:6379/0
+
+# Authentication (generate a unique random value; never commit it)
+JWT_SECRET=<at-least-32-random-characters>
+JWT_EXPIRATION_HOURS=8
+
+# Login throttling
+RATE_LIMIT_LOGIN_REQUESTS=5
+RATE_LIMIT_LOGIN_WINDOW_SECONDS=60
 
 # Logging
 LOG_LEVEL=INFO
@@ -266,16 +279,13 @@ LOG_LEVEL=INFO
 CV_CONFIDENCE_THRESHOLD=0.6
 CV_FPS_SAMPLING=2
 
-# LLM (Phase 7+)
-LLM_PROVIDER=openai  # or "anthropic"
-OPENAI_API_KEY=sk-...
 ```
 
 ### Frontend (.env)
 
 ```env
 VITE_API_URL=http://localhost:8000/api/v1
-VITE_WS_URL=ws://localhost:8000/ws
+VITE_WS_URL=ws://localhost:8000/ws/inventory
 ```
 
 ---
@@ -391,22 +401,21 @@ redis-cli ping
 | Phase | Epic | Status | Key Tasks |
 |-------|------|--------|-----------|
 | 1 | Foundation | ✅ Complete | Monorepo, config, CI |
-| 2 | Frontend Shell | ✅ Complete | Pages, auth layouts |
+| 2 | Frontend Shell | ⚠️ Not in checkout | Historical docs reference an external/missing frontend |
 | 3 | Computer Vision | ✅ Complete | YOLO, ByteTrack, ROI |
 | 4 | Reconciliation | ✅ Complete | Engine, state machine |
 | 5 | Backend Core | ✅ Complete | Auth, DB, REST, events |
-| 6 | E2E Integration | ✅ Complete | API layer, frontend wired |
+| 6 | E2E Integration | 🔄 In Progress | Backend API present; frontend source and E2E flow pending |
 | 7 | AI Agents | ✅ Complete | Supervisor, insight, anomaly, notification |
-| 8 | Hardening & Docs | 🔄 In Progress | Security, tests, docs |
+| 8 | Hardening & Docs | ✅ Complete | Security implementation, migrations, regression tests, docs |
 
 ---
 
 ## Next Steps
 
-### Phase 8 (Remaining)
-- [ ] Security hardening (rate limiting, CORS, audit logs)
-- [ ] Test coverage audit
-- [ ] Final documentation
+### Remaining integration work
+- [ ] Restore and update the missing frontend client
+- [ ] Run the end-to-end CV → reconciliation → API → WebSocket flow
 - [ ] Evaluation report for FYP
 
 ### Post-MVP

@@ -21,7 +21,11 @@ from app.services.alert_rule_engine import AlertRuleEngine
 def db():
     """Initialize database and return session."""
     init_db()
-    return SessionLocal()
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture

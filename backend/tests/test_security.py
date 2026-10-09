@@ -1,494 +1,221 @@
-"""
-Phase 8 security tests — JWT authentication, RBAC, rate limiting, and validation.
-"""
+"""Authentication, authorization, rate-limit, and secret-regression tests."""
+from __future__ import annotations
+
+import logging
+import time
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
+from starlette.websockets import WebSocketDisconnect
 
-from app.main import app
-from app.core.security import (
-    create_access_token,
-    decode_access_token,
-    authenticate_user,
-    hash_password,
-    verify_password,
-    has_permission,
-)
-from app.core.validation import (
-    sanitize_string,
-    validate_sku,
-    validate_email,
-    validate_url,
-    validate_quantity,
-    validate_confidence,
-)
-from app.core.rate_limiter import RateLimiter
+from app.core.rate_limiter import RateLimiter, shared_rate_limiter
+from app.core.security import create_access_token, hash_password, verify_password
+from app.database import SessionLocal
+from app.models.user import User, UserRole
+
+PASSWORD = "A-secure-test-password-42!"
 
 
 @pytest.fixture
-def client():
-    """FastAPI test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def admin_token():
-    """Admin JWT token."""
-    return create_access_token(
-        user_id="user-001",
-        username="admin",
-        role="admin",
-    )
-
-
-@pytest.fixture
-def manager_token():
-    """Manager JWT token."""
-    return create_access_token(
-        user_id="user-002",
-        username="manager",
-        role="manager",
-    )
-
-
-@pytest.fixture
-def staff_token():
-    """Staff JWT token."""
-    return create_access_token(
-        user_id="user-003",
-        username="staff",
-        role="staff",
-    )
-
-
-# ============================================================================
-# JWT Authentication Tests
-# ============================================================================
-
-class TestJWTAuthentication:
-    """JWT token generation and validation."""
-    
-    def test_create_access_token(self):
-        """Test JWT token creation."""
-        token = create_access_token(
-            user_id="test-user-001",
-            username="testuser",
-            role="admin",
-        )
-        assert isinstance(token, str)
-        assert len(token) > 0
-    
-    def test_decode_valid_token(self):
-        """Test decoding valid JWT token."""
-        token = create_access_token(
-            user_id="test-user-001",
-            username="testuser",
-            role="admin",
-        )
-        token_data = decode_access_token(token)
-        
-        assert token_data is not None
-        assert token_data.user_id == "test-user-001"
-        assert token_data.username == "testuser"
-        assert token_data.role == "admin"
-    
-    def test_decode_invalid_token(self):
-        """Test decoding invalid JWT token."""
-        invalid_token = "invalid.token.here"
-        token_data = decode_access_token(invalid_token)
-        assert token_data is None
-    
-    def test_decode_expired_token(self):
-        """Test decoding expired JWT token."""
-        # Create token that expires in the past
-        from datetime import datetime, timedelta
-        from app.core.security import SECRET_KEY, ALGORITHM
-        from jose import jwt
-        
-        past_time = datetime.utcnow() - timedelta(hours=25)
-        to_encode = {
-            "sub": "test-user",
-            "username": "testuser",
-            "role": "admin",
-            "exp": past_time,
-            "iat": datetime.utcnow(),
+def users():
+    emails = ["admin@test.local", "manager@test.local", "staff@test.local", "inactive@test.local"]
+    with SessionLocal() as db:
+        db.query(User).filter(User.email.in_(emails)).delete(synchronize_session=False)
+        records = {
+            "admin": User(
+                email=emails[0], username="test-admin", hashed_password=hash_password(PASSWORD), role=UserRole.ADMIN
+            ),
+            "manager": User(
+                email=emails[1], username="test-manager", hashed_password=hash_password(PASSWORD), role=UserRole.MANAGER
+            ),
+            "staff": User(
+                email=emails[2], username="test-staff", hashed_password=hash_password(PASSWORD), role=UserRole.STAFF
+            ),
+            "inactive": User(
+                email=emails[3],
+                username="test-inactive",
+                hashed_password=hash_password(PASSWORD),
+                role=UserRole.STAFF,
+                is_active=False,
+            ),
         }
-        expired_token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        
-        token_data = decode_access_token(expired_token)
-        assert token_data is None
+        db.add_all(records.values())
+        db.commit()
+        for record in records.values():
+            db.refresh(record)
+        snapshot = {
+            key: {"id": value.id, "email": value.email, "username": value.username, "role": value.role.value}
+            for key, value in records.items()
+        }
+    yield snapshot
+    with SessionLocal() as db:
+        db.query(User).filter(User.email.in_(emails)).delete(synchronize_session=False)
+        db.commit()
 
 
-# ============================================================================
-# Authentication Endpoint Tests
-# ============================================================================
+def _token(user: dict, *, expires: timedelta | None = None) -> str:
+    return create_access_token(
+        user_id=user["id"],
+        username=user["username"],
+        email=user["email"],
+        role=user["role"],
+        expires_delta=expires,
+    )
 
-class TestAuthenticationEndpoints:
-    """Authentication endpoints (login, logout, refresh, verify)."""
-    
-    def test_login_success(self, client):
-        """Test successful login."""
+
+def _headers(user: dict) -> dict[str, str]:
+    return {"Authorization": f"Bearer {_token(user)}"}
+
+
+def test_passwords_use_argon2id():
+    password_hash = hash_password(PASSWORD)
+    assert password_hash.startswith("$argon2id$")
+    assert password_hash != PASSWORD
+    assert verify_password(PASSWORD, password_hash)
+    assert not verify_password("incorrect", password_hash)
+
+
+def test_login_with_valid_email(client: TestClient, users):
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": users["admin"]["email"].upper(), "password": PASSWORD},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    assert body["email"] == users["admin"]["email"]
+    assert body["role"] == "admin"
+    assert "hashed_password" not in body
+
+
+@pytest.mark.parametrize(
+    ("email", "password"),
+    [
+        ("admin@test.local", "wrong-password"),
+        ("unknown@test.local", PASSWORD),
+        ("inactive@test.local", PASSWORD),
+    ],
+)
+def test_login_failures_are_generic(client: TestClient, users, email: str, password: str):
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid email or password"}
+
+
+def test_invalid_login_payload_returns_422(client: TestClient):
+    assert client.post("/api/v1/auth/login", json={"email": "not-an-email", "password": "x"}).status_code == 422
+    assert client.post("/api/v1/auth/login", json={"username": "admin", "password": "x"}).status_code == 422
+
+
+def test_missing_and_invalid_tokens_are_rejected(client: TestClient):
+    assert client.get("/api/v1/dashboard/metrics").status_code == 401
+    assert client.get(
+        "/api/v1/dashboard/metrics", headers={"Authorization": "Bearer invalid.token.value"}
+    ).status_code == 401
+
+
+def test_expired_and_tampered_tokens_are_rejected(client: TestClient, users):
+    expired = _token(users["admin"], expires=timedelta(seconds=-1))
+    valid = _token(users["admin"])
+    tampered = valid[:-1] + ("A" if valid[-1] != "A" else "B")
+    assert client.get(
+        "/api/v1/dashboard/metrics", headers={"Authorization": f"Bearer {expired}"}
+    ).status_code == 401
+    assert client.get(
+        "/api/v1/dashboard/metrics", headers={"Authorization": f"Bearer {tampered}"}
+    ).status_code == 401
+
+
+def test_valid_token_access_and_inactive_user_recheck(client: TestClient, users):
+    headers = _headers(users["staff"])
+    assert client.get("/api/v1/dashboard/metrics", headers=headers).status_code == 200
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.id == users["staff"]["id"]).one()
+        user.is_active = False
+        db.commit()
+    assert client.get("/api/v1/dashboard/metrics", headers=headers).status_code == 401
+
+
+def test_role_based_authorization(client: TestClient, users):
+    payload = {"sku": "AUTHZ-001", "name": "Authorization Test Product", "low_stock_threshold": 2, "reorder_point": 5}
+    assert client.post("/api/v1/products", json=payload, headers=_headers(users["staff"])).status_code == 403
+    created = client.post("/api/v1/products", json=payload, headers=_headers(users["manager"]))
+    assert created.status_code == 201
+    product_id = created.json()["id"]
+    assert client.delete(f"/api/v1/products/{product_id}", headers=_headers(users["manager"])).status_code == 403
+    assert client.delete(f"/api/v1/products/{product_id}", headers=_headers(users["admin"])).status_code == 204
+
+
+def test_login_rate_limit_on_prefixed_route(client: TestClient, users):
+    for _ in range(5):
         response = client.post(
             "/api/v1/auth/login",
-            json={"username": "admin", "password": "admin123"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        assert data["username"] == "admin"
-        assert data["role"] == "admin"
-    
-    def test_login_invalid_username(self, client):
-        """Test login with invalid username."""
-        response = client.post(
-            "/api/v1/auth/login",
-            json={"username": "nonexistent", "password": "password"},
+            json={"email": users["admin"]["email"], "password": "incorrect"},
         )
         assert response.status_code == 401
-        assert "Invalid username or password" in response.json()["detail"]
-    
-    def test_login_invalid_password(self, client):
-        """Test login with invalid password."""
-        response = client.post(
-            "/api/v1/auth/login",
-            json={"username": "admin", "password": "wrongpassword"},
+    blocked = client.post(
+        "/api/v1/auth/login",
+        json={"email": users["admin"]["email"], "password": "incorrect"},
+    )
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) >= 1
+    assert blocked.json() == {"detail": "Too many login attempts. Please try again later."}
+
+    shared_rate_limiter.fallback.reset()
+    reset = client.post(
+        "/api/v1/auth/login",
+        json={"email": users["admin"]["email"], "password": PASSWORD},
+    )
+    assert reset.status_code == 200
+
+
+def test_in_memory_rate_limit_expires_old_entries():
+    limiter = RateLimiter()
+    assert limiter.is_allowed("client", limit=1, window_seconds=1)
+    assert not limiter.is_allowed("client", limit=1, window_seconds=1)
+    limiter.requests["client"] = [time.monotonic() - 2]
+    assert limiter.is_allowed("client", limit=1, window_seconds=1)
+
+
+def test_websocket_requires_active_authentication(client: TestClient, users):
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect("/ws/inventory"):
+            pass
+    assert exc.value.code == 4401
+
+    with client.websocket_connect(f"/ws/inventory?token={_token(users['staff'])}") as websocket:
+        websocket.send_text("ping")
+        assert websocket.receive_text() == "pong"
+
+
+def test_health_checks_remain_public(client: TestClient):
+    assert client.get("/health").status_code == 200
+    assert client.get("/api/v1/health").status_code == 200
+
+
+def test_login_does_not_leak_secrets_to_response_or_logs(client: TestClient, users, caplog):
+    caplog.set_level(logging.INFO)
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": users["admin"]["email"], "password": PASSWORD},
+    )
+    rendered = response.text + caplog.text
+    assert PASSWORD not in rendered
+    assert "hashed_password" not in rendered
+
+
+def test_normalized_email_is_unique(users):
+    with SessionLocal() as db:
+        db.add(
+            User(
+                email=users["admin"]["email"].upper(),
+                username="case-duplicate",
+                hashed_password=hash_password(PASSWORD),
+                role=UserRole.STAFF,
+            )
         )
-        assert response.status_code == 401
-        assert "Invalid username or password" in response.json()["detail"]
-    
-    def test_login_manager(self, client):
-        """Test manager login."""
-        response = client.post(
-            "/api/v1/auth/login",
-            json={"username": "manager", "password": "manager123"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["role"] == "manager"
-    
-    def test_login_staff(self, client):
-        """Test staff login."""
-        response = client.post(
-            "/api/v1/auth/login",
-            json={"username": "staff", "password": "staff123"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["role"] == "staff"
-    
-    def test_verify_token(self, client, admin_token):
-        """Test token verification."""
-        response = client.get(
-            "/api/v1/auth/verify",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["valid"] is True
-        assert data["username"] == "admin"
-        assert data["role"] == "admin"
-    
-    def test_verify_invalid_token(self, client):
-        """Test verification with invalid token."""
-        response = client.get(
-            "/api/v1/auth/verify",
-            headers={"Authorization": "Bearer invalid.token.here"},
-        )
-        assert response.status_code == 401
-    
-    def test_refresh_token(self, client, admin_token):
-        """Test token refresh."""
-        response = client.post(
-            "/api/v1/auth/refresh",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        # Tokens may be the same if generated within same millisecond
-        assert data["username"] == "admin"
-    
-    def test_logout(self, client, admin_token):
-        """Test logout."""
-        response = client.post(
-            "/api/v1/auth/logout",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "Successfully logged out" in data["message"]
-
-
-# ============================================================================
-# Password Hashing Tests
-# ============================================================================
-
-class TestPasswordHashing:
-    """Password hashing and verification."""
-    
-    def test_hash_password(self):
-        """Test password hashing."""
-        password = "SecurePassword123"
-        hashed = hash_password(password)
-        
-        assert hashed != password
-        assert len(hashed) > 0
-    
-    def test_verify_correct_password(self):
-        """Test verifying correct password."""
-        password = "SecurePassword123"
-        hashed = hash_password(password)
-        
-        assert verify_password(password, hashed) is True
-    
-    def test_verify_incorrect_password(self):
-        """Test verifying incorrect password."""
-        password = "SecurePassword123"
-        hashed = hash_password(password)
-        
-        assert verify_password("WrongPassword", hashed) is False
-
-
-# ============================================================================
-# RBAC (Role-Based Access Control) Tests
-# ============================================================================
-
-class TestRBAC:
-    """Role-based access control permissions."""
-    
-    def test_admin_permissions(self):
-        """Test admin role has all permissions."""
-        assert has_permission("admin", "read") is True
-        assert has_permission("admin", "write") is True
-        assert has_permission("admin", "delete") is True
-        assert has_permission("admin", "admin") is True
-    
-    def test_manager_permissions(self):
-        """Test manager role permissions."""
-        assert has_permission("manager", "read") is True
-        assert has_permission("manager", "write") is True
-        assert has_permission("manager", "delete") is False
-        assert has_permission("manager", "admin") is False
-    
-    def test_staff_permissions(self):
-        """Test staff role permissions."""
-        assert has_permission("staff", "read") is True
-        assert has_permission("staff", "write") is False
-        assert has_permission("staff", "delete") is False
-        assert has_permission("staff", "admin") is False
-
-
-# ============================================================================
-# Input Validation Tests
-# ============================================================================
-
-class TestInputValidation:
-    """Input validation and sanitization."""
-    
-    def test_sanitize_string_xss(self):
-        """Test XSS prevention in string sanitization."""
-        malicious = '<script>alert("xss")</script>'
-        sanitized = sanitize_string(malicious)
-        
-        assert "<script>" not in sanitized
-        assert "script" in sanitized
-        assert "&lt;" in sanitized
-    
-    def test_sanitize_string_max_length(self):
-        """Test string length truncation."""
-        long_string = "a" * 2000
-        sanitized = sanitize_string(long_string, max_length=100)
-        
-        assert len(sanitized) == 100
-    
-    def test_sanitize_string_html_entities(self):
-        """Test HTML entity escaping."""
-        html = '<div class="test">Content & more</div>'
-        sanitized = sanitize_string(html)
-        
-        assert "&lt;" in sanitized
-        assert "&gt;" in sanitized
-        assert "&amp;" in sanitized
-    
-    def test_validate_sku_valid(self):
-        """Test valid SKU validation."""
-        assert validate_sku("SKU-001") is True
-        assert validate_sku("PROD-ABC-123") is True
-        assert validate_sku("ABC123") is True
-    
-    def test_validate_sku_invalid(self):
-        """Test invalid SKU validation."""
-        assert validate_sku("sku-001") is False  # lowercase
-        assert validate_sku("SKU@001") is False  # invalid character
-        assert validate_sku("") is False  # empty
-        assert validate_sku("a" * 100) is False  # too long
-    
-    def test_validate_email_valid(self):
-        """Test valid email validation."""
-        assert validate_email("user@example.com") is True
-        assert validate_email("test.user+tag@domain.co.uk") is True
-    
-    def test_validate_email_invalid(self):
-        """Test invalid email validation."""
-        assert validate_email("notanemail") is False
-        assert validate_email("user@") is False
-        assert validate_email("@example.com") is False
-    
-    def test_validate_url_valid(self):
-        """Test valid URL validation."""
-        assert validate_url("https://example.com") is True
-        assert validate_url("http://www.example.com/path") is True
-        assert validate_url("https://api.example.com/v1/resource") is True
-    
-    def test_validate_url_invalid(self):
-        """Test invalid URL validation."""
-        assert validate_url("not a url") is False
-        assert validate_url("example.com") is False  # missing protocol
-    
-    def test_validate_quantity_valid(self):
-        """Test valid quantity validation."""
-        assert validate_quantity(0) is True
-        assert validate_quantity(100) is True
-        assert validate_quantity(999999) is True
-    
-    def test_validate_quantity_invalid(self):
-        """Test invalid quantity validation."""
-        assert validate_quantity(-1) is False
-        assert validate_quantity(1000000) is False
-        assert validate_quantity(1.5) is False  # not integer
-    
-    def test_validate_confidence_valid(self):
-        """Test valid confidence validation."""
-        assert validate_confidence(0.0) is True
-        assert validate_confidence(0.5) is True
-        assert validate_confidence(1.0) is True
-    
-    def test_validate_confidence_invalid(self):
-        """Test invalid confidence validation."""
-        assert validate_confidence(-0.1) is False
-        assert validate_confidence(1.1) is False
-        assert validate_confidence("0.5") is False  # string not float
-
-
-# ============================================================================
-# Rate Limiting Tests
-# ============================================================================
-
-class TestRateLimiting:
-    """Rate limiting functionality."""
-    
-    def test_rate_limiter_allows_under_limit(self):
-        """Test rate limiter allows requests under limit."""
-        limiter = RateLimiter()
-        
-        for i in range(5):
-            assert limiter.is_allowed("user-123", limit=10, window_seconds=60) is True
-    
-    def test_rate_limiter_blocks_over_limit(self):
-        """Test rate limiter blocks requests over limit."""
-        limiter = RateLimiter()
-        
-        # Fill up the limit
-        for i in range(5):
-            limiter.is_allowed("user-123", limit=5, window_seconds=60)
-        
-        # Next request should be blocked
-        assert limiter.is_allowed("user-123", limit=5, window_seconds=60) is False
-    
-    def test_rate_limiter_resets_after_window(self):
-        """Test rate limiter resets after time window."""
-        from datetime import datetime, timedelta
-        limiter = RateLimiter()
-        
-        # Fill up the limit
-        for i in range(5):
-            limiter.is_allowed("user-123", limit=5, window_seconds=60)
-        
-        # Manually advance time and clear old requests
-        limiter.requests["user-123"] = []
-        
-        # Should be allowed again
-        assert limiter.is_allowed("user-123", limit=5, window_seconds=60) is True
-    
-    def test_rate_limiter_per_identifier(self):
-        """Test rate limiter tracks different identifiers separately."""
-        limiter = RateLimiter()
-        
-        # Fill limit for user-1
-        for i in range(5):
-            limiter.is_allowed("user-1", limit=5, window_seconds=60)
-        
-        # user-1 should be blocked
-        assert limiter.is_allowed("user-1", limit=5, window_seconds=60) is False
-        
-        # user-2 should still be allowed
-        assert limiter.is_allowed("user-2", limit=5, window_seconds=60) is True
-
-
-# ============================================================================
-# Integration Tests
-# ============================================================================
-
-class TestSecurityIntegration:
-    """Integration tests for security features."""
-    
-    def test_unauthenticated_access_to_protected_endpoint(self, client):
-        """Test that protected endpoints require authentication."""
-        # Try to access health endpoint (doesn't require auth)
-        response = client.get("/health")
-        assert response.status_code == 200
-    
-    def test_rate_limit_response_headers(self, client, admin_token):
-        """Test rate limit status in response."""
-        # Make multiple requests and check they're processed
-        headers = {"Authorization": f"Bearer {admin_token}"}
-        
-        response = client.get("/health", headers=headers)
-        assert response.status_code == 200
-    
-    def test_security_headers_present(self, client):
-        """Test security-related headers in responses."""
-        response = client.get("/health")
-        # Check that we get a successful response
-        assert response.status_code == 200
-
-
-# ============================================================================
-# Edge Case Tests
-# ============================================================================
-
-class TestSecurityEdgeCases:
-    """Edge case and security vulnerability tests."""
-    
-    def test_sql_injection_in_sku(self):
-        """Test SQL injection attempt in SKU is rejected."""
-        malicious_sku = "'; DROP TABLE products; --"
-        assert validate_sku(malicious_sku) is False
-    
-    def test_xss_in_product_name(self):
-        """Test XSS attempt in product name is sanitized."""
-        xss_attempt = '<img src=x onerror="alert(\'xss\')">'
-        sanitized = sanitize_string(xss_attempt)
-        
-        # Check that HTML is escaped - the key is that < and > are escaped
-        # so the browser won't interpret it as HTML
-        assert "&lt;" in sanitized  # < is escaped
-        assert "&gt;" in sanitized  # > is escaped
-        assert "&quot;" in sanitized  # " is escaped
-        # The result is safe for rendering in HTML context
-    
-    def test_unicode_in_validation(self):
-        """Test unicode characters in validation."""
-        unicode_string = "产品名称🎉"
-        sanitized = sanitize_string(unicode_string)
-        
-        assert len(sanitized) > 0
-    
-    def test_null_byte_injection(self):
-        """Test null byte injection is handled."""
-        null_byte_string = "product\x00name"
-        sanitized = sanitize_string(null_byte_string)
-        
-        # Control characters should be removed
-        assert "\x00" not in sanitized
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()

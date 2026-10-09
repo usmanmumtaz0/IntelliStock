@@ -55,15 +55,15 @@ API_PORT=8000
 DEBUG=false
 
 # Database (use managed PostgreSQL in prod)
-DATABASE_URL=postgresql://prod_user:SECURE_PASSWORD@prod-postgres.example.com:5432/intellistock
-DB_POOL_SIZE=20
-DB_MAX_OVERFLOW=40
+DATABASE_URL=postgresql://DB_USER:URL_ENCODED_PASSWORD@prod-postgres.example.com:5432/intellistock
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=40
 
 # Cache (use managed Redis in prod)
 REDIS_URL=redis://prod-redis.example.com:6379/0
 
 # Security
-SECRET_KEY=<generate_with_openssl_rand_hex>
+JWT_SECRET=<generate_at_least_32_random_characters>
 JWT_ALGORITHM=HS256
 JWT_EXPIRATION_HOURS=24
 
@@ -272,6 +272,10 @@ services:
 ---
 
 ## Security Checklist
+
+Credential provisioning, PostgreSQL/JWT rotation, public endpoint rationale, and
+safe Git-history cleanup are documented in
+[`SECURITY_AND_CREDENTIAL_ROTATION.md`](SECURITY_AND_CREDENTIAL_ROTATION.md).
 
 - [ ] Set strong `SECRET_KEY` (min 32 chars)
 - [ ] Use HTTPS with valid SSL certificates

@@ -4,7 +4,7 @@ Alerts endpoints for monitoring and event notifications.
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 from app.database import get_db
@@ -17,6 +17,8 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 
 class AlertResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
     id: str
     type: str  # "low_stock" | "camera_offline" | "anomaly"
     severity: str  # "critical" | "warning" | "info"
@@ -24,12 +26,8 @@ class AlertResponse(BaseModel):
     detail: str
     zone: str
     sku: str | None
-    min_ago: int
+    min_ago: int = Field(alias="minAgo")
     acknowledged: bool
-
-    class Config:
-        from_attributes = True
-
 
 @router.get("", response_model=List[AlertResponse])
 def list_alerts(

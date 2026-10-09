@@ -8,6 +8,7 @@ from typing import List
 from app.database import get_db
 from app.models.camera import Camera
 from app.schemas.camera import CameraCreate, CameraUpdate, CameraResponse
+from app.core.security import require_roles
 
 router = APIRouter(prefix="/api/v1/cameras", tags=["cameras"])
 
@@ -28,7 +29,12 @@ def get_camera(camera_id: str, db: Session = Depends(get_db)):
     return camera
 
 
-@router.post("", response_model=CameraResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CameraResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("admin", "manager"))],
+)
 def create_camera(camera: CameraCreate, db: Session = Depends(get_db)):
     """Create a new camera."""
     db_camera = Camera(**camera.dict())
@@ -38,7 +44,11 @@ def create_camera(camera: CameraCreate, db: Session = Depends(get_db)):
     return db_camera
 
 
-@router.put("/{camera_id}", response_model=CameraResponse)
+@router.put(
+    "/{camera_id}",
+    response_model=CameraResponse,
+    dependencies=[Depends(require_roles("admin", "manager"))],
+)
 def update_camera(camera_id: str, camera: CameraUpdate, db: Session = Depends(get_db)):
     """Update a camera."""
     db_camera = db.query(Camera).filter(Camera.id == camera_id).first()
@@ -54,7 +64,11 @@ def update_camera(camera_id: str, camera: CameraUpdate, db: Session = Depends(ge
     return db_camera
 
 
-@router.delete("/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{camera_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles("admin"))],
+)
 def delete_camera(camera_id: str, db: Session = Depends(get_db)):
     """Delete a camera."""
     db_camera = db.query(Camera).filter(Camera.id == camera_id).first()

@@ -52,26 +52,17 @@
 
 ## 🧪 Test the System
 
-### 1. Test Frontend Authentication
-```
-http://localhost:3000
+### 1. Provision and test authentication
 
-Demo Credentials:
-- Email: admin@intellistock.local
-- Password: admin123
-
-Or
-- Email: user@intellistock.local
-- Password: user123
-
-Or register new account
-```
+There are no built-in demo credentials. Apply migrations, run
+`python -m scripts.create_admin`, and sign in with the email and password you
+provisioned. See `docs/SECURITY_AND_CREDENTIAL_ROTATION.md`.
 
 ### 2. Test Backend API
 
 **List Cameras:**
 ```bash
-curl http://localhost:8000/api/v1/cameras
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/cameras
 ```
 
 **Create a Camera:**
@@ -181,8 +172,7 @@ uvicorn app.main:app --reload
 ### Database Connection Issues
 ```bash
 # Check PostgreSQL
-$env:PGPASSWORD="Pakistan#12"
-psql -U postgres -h localhost -d intellistock -c "SELECT NOW();"
+psql -W -U intellistock -h localhost -d intellistock -c "SELECT NOW();"
 ```
 
 ### Redis Connection Issues

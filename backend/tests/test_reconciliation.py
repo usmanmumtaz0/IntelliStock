@@ -16,6 +16,8 @@ from app.models.product import Product
 from app.models.camera import Camera
 from app.models.zone import ShelfZone
 from app.models.inventory import Inventory, InventoryStatus
+from app.models.user import User, UserRole
+from app.core.security import create_access_token, hash_password
 from app.services.observation_window import (
     Observation,
     ObservationWindow,
@@ -29,7 +31,11 @@ client = TestClient(app)
 @pytest.fixture
 def db():
     """Get database session."""
-    return SessionLocal()
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture
@@ -67,12 +73,27 @@ def sample_data(db: Session):
         detection_confidence_threshold=0.6,
     )
     db.add(zone)
+    user = User(
+        email=f"reconcile-{str(uuid.uuid4())[:8]}@test.local",
+        username=f"reconcile-{str(uuid.uuid4())[:8]}",
+        hashed_password=hash_password("reconciliation-test-password"),
+        role=UserRole.MANAGER,
+    )
+    db.add(user)
     db.commit()
+
+    token = create_access_token(
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role.value,
+    )
     
     return {
         "product": product,
         "camera": camera,
         "zone": zone,
+        "headers": {"Authorization": f"Bearer {token}"},
     }
 
 
@@ -320,6 +341,7 @@ def test_reconciliation_endpoint(db: Session, sample_data):
     # Make two calls to reach consensus
     response1 = client.post(
         "/api/v1/inventory/reconcile",
+        headers=sample_data["headers"],
         json={
             "camera_id": sample_data["camera"].id,
             "zone_id": sample_data["zone"].id,
@@ -336,6 +358,7 @@ def test_reconciliation_endpoint(db: Session, sample_data):
     # Second observation
     response2 = client.post(
         "/api/v1/inventory/reconcile",
+        headers=sample_data["headers"],
         json={
             "camera_id": sample_data["camera"].id,
             "zone_id": sample_data["zone"].id,

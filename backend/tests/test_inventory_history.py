@@ -27,7 +27,11 @@ def db():
     """Get database session."""
     # Initialize tables
     init_db()
-    return SessionLocal()
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture
@@ -500,7 +504,7 @@ class TestInventoryHistoryIntegration:
         assert records[-1].previous_quantity == 0
         assert records[-1].new_quantity == 5
 
-    def test_api_endpoint_get_zone_product_history(self, client, sample_data):
+    def test_api_endpoint_get_zone_product_history(self, client, sample_data, auth_headers):
         """Test API endpoint for zone/product history."""
         service = InventoryHistoryService(SessionLocal())
         
@@ -518,6 +522,7 @@ class TestInventoryHistoryIntegration:
         response = client.get(
             f"/api/v1/inventory/{sample_data['zone'].id}/{sample_data['product'].id}/history",
             params={"days": 30, "limit": 50, "offset": 0},
+            headers=auth_headers,
         )
         
         assert response.status_code == 200
@@ -526,11 +531,12 @@ class TestInventoryHistoryIntegration:
         assert "pagination" in data
         assert data["pagination"]["total"] >= 3
 
-    def test_api_endpoint_get_recent_history(self, client):
+    def test_api_endpoint_get_recent_history(self, client, auth_headers):
         """Test API endpoint for recent history."""
         response = client.get(
             "/api/v1/inventory/history/recent",
             params={"limit": 50, "offset": 0, "days": 30},
+            headers=auth_headers,
         )
         
         assert response.status_code == 200
@@ -538,7 +544,7 @@ class TestInventoryHistoryIntegration:
         assert "data" in data
         assert "pagination" in data
 
-    def test_api_endpoint_depletion_rate(self, db: Session, sample_data):
+    def test_api_endpoint_depletion_rate(self, db: Session, sample_data, auth_headers):
         """Test API endpoint for depletion rate."""
         service = InventoryHistoryService(db)
         
@@ -555,6 +561,7 @@ class TestInventoryHistoryIntegration:
         
         response = client.get(
             "/api/v1/inventory/depletion-rate",
+            headers=auth_headers,
             params={
                 "zone_id": sample_data["zone"].id,
                 "product_id": sample_data["product"].id,

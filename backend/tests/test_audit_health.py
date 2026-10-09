@@ -18,7 +18,11 @@ from app.models.system_health import SystemHealthMetric, PerformanceLog, Compone
 def db():
     """Initialize database and return session."""
     init_db()
-    return SessionLocal()
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 class TestAuditService:

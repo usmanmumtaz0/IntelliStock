@@ -2,12 +2,8 @@
 Database seeding script — populates realistic test data.
 Run once to initialize database with zones, products, cameras, and inventory.
 """
-import sys
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-
-# Add backend to path
-sys.path.insert(0, 'd:\intellistock 1\backend')
 
 from app.database import SessionLocal, engine
 from app.models.base import BaseModel
@@ -195,26 +191,24 @@ def seed_inventory(db: Session, zones: dict, products: dict):
 def main():
     """Run all seed functions."""
     db = SessionLocal()
-    
+
     try:
         print("\n🌱 Seeding IntelliStock database...\n")
-        
-        # Check if already seeded
         if db.query(Camera).count() > 0:
             print("⚠️  Database already seeded. Skipping.")
             return
-        
+
         cameras = seed_cameras(db)
         zones = seed_zones(db, cameras)
         products = seed_products(db)
         seed_inventory(db, zones, products)
-        
+
         print("\n✅ Database seeding complete!\n")
         print(f"   Cameras: {len(cameras)}")
         print(f"   Zones: {len(zones)}")
         print(f"   Products: {len(products)}")
         print(f"   Inventory records: {db.query(Inventory).count()}\n")
-        
+
     except Exception as e:
         print(f"\n❌ Error: {e}\n")
         db.rollback()

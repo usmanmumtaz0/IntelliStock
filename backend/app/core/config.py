@@ -1,39 +1,67 @@
-"""
-Configuration management using Pydantic settings.
-"""
+"""Validated application configuration loaded exclusively from the environment."""
+from __future__ import annotations
+
 import os
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # Database
-    DATABASE_URL: str = "postgresql://postgres:Pakistan%2312@localhost:5432/intellistock"
-
-    # Redis
+    APP_ENV: Literal["development", "test", "production"] = "development"
+    DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_SOCKET_TIMEOUT_SECONDS: float = Field(default=1.0, gt=0, le=30)
 
-    # JWT
-    JWT_SECRET: str = "local-dev-secret-key-change-in-production"
+    JWT_SECRET: SecretStr
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_HOURS: int = 24
+    JWT_EXPIRATION_HOURS: int = Field(default=8, ge=1, le=24)
 
-    # API
-    API_HOST: str = "localhost"
+    API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-
-    # Logging
-    LOG_LEVEL: str = "DEBUG"
-
-    # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8000"]
+
+    LOG_LEVEL: str = "INFO"
+    TRUSTED_PROXY_HEADERS: bool = False
+
+    RATE_LIMIT_LOGIN_REQUESTS: int = Field(default=5, ge=1, le=100)
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3600)
+    RATE_LIMIT_DEFAULT_REQUESTS: int = Field(default=100, ge=1)
+    RATE_LIMIT_DEFAULT_WINDOW_SECONDS: int = Field(default=60, ge=1)
+
+    DATABASE_POOL_SIZE: int = Field(default=10, ge=1, le=100)
+    DATABASE_MAX_OVERFLOW: int = Field(default=20, ge=0, le=200)
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'),
         case_sensitive=True,
+        extra="ignore",
     )
 
+    @model_validator(mode="after")
+    def validate_security_settings(self) -> "Settings":
+        """Reject unsafe or incompatible runtime configuration."""
+        secret = self.JWT_SECRET.get_secret_value()
+        normalized_secret = secret.lower()
+        if (
+            len(secret) < 32
+            or "replace" in normalized_secret
+            or "secret-key" in normalized_secret
+        ):
+            raise ValueError("JWT_SECRET must be a non-placeholder value of at least 32 characters")
 
-# Create a global settings instance
+        if self.JWT_ALGORITHM not in {"HS256", "HS384", "HS512"}:
+            raise ValueError("JWT_ALGORITHM must be an approved HMAC algorithm")
+
+        if self.APP_ENV != "test" and not self.DATABASE_URL.startswith(("postgresql://", "postgresql+psycopg2://")):
+            raise ValueError("DATABASE_URL must use PostgreSQL outside the test environment")
+        if self.APP_ENV == "production" and "replace_locally" in self.DATABASE_URL:
+            raise ValueError("DATABASE_URL still contains a placeholder")
+        return self
+
+
 settings = Settings()

@@ -8,17 +8,25 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import redis
+import threading
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Redis client for observation windows
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True,
+    socket_connect_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+    socket_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+)
 
 # Configuration
 WINDOW_SIZE = 5  # Keep last N observations
 WINDOW_TTL_SECONDS = 600  # Expire windows after 10 minutes of inactivity
+_fallback_windows: dict[str, list[str]] = {}
+_fallback_lock = threading.Lock()
 
 
 class Observation:
@@ -133,7 +141,12 @@ class ObservationWindow:
     
     def clear(self):
         """Clear the observation window."""
-        redis_client.delete(self.key)
+        try:
+            redis_client.delete(self.key)
+        except redis.RedisError:
+            pass
+        with _fallback_lock:
+            _fallback_windows.pop(self.key, None)
         logger.debug(f"Observation window cleared: {self.key}")
     
     def _get_observations(self) -> List[Observation]:
@@ -142,9 +155,11 @@ class ObservationWindow:
             data = redis_client.lrange(self.key, 0, -1)
             observations = [Observation.from_dict(json.loads(item)) for item in data]
             return observations
-        except Exception as e:
-            logger.error(f"Failed to get observations from {self.key}: {e}")
-            return []
+        except redis.RedisError:
+            logger.warning("Redis observation window unavailable; using per-process transient fallback")
+            with _fallback_lock:
+                data = list(_fallback_windows.get(self.key, []))
+            return [Observation.from_dict(json.loads(item)) for item in data]
     
     def _store_observations(self, observations: List[Observation]):
         """Store observations to Redis."""
@@ -155,8 +170,10 @@ class ObservationWindow:
                 redis_client.rpush(self.key, json.dumps(obs.to_dict()))
             # Set expiration
             redis_client.expire(self.key, WINDOW_TTL_SECONDS)
-        except Exception as e:
-            logger.error(f"Failed to store observations to {self.key}: {e}")
+        except redis.RedisError:
+            logger.warning("Redis observation window unavailable; using per-process transient fallback")
+            with _fallback_lock:
+                _fallback_windows[self.key] = [json.dumps(obs.to_dict()) for obs in observations]
 
 
 def get_observation_window(camera_id: str, zone_id: str, product_id: str) -> ObservationWindow:

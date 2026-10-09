@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     container_name: intellistock_postgres
     environment:
-      POSTGRES_USER: intellistock
-      POSTGRES_PASSWORD: intellistock_dev
-      POSTGRES_DB: intellistock
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U intellistock"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,12 +35,15 @@ services:
       dockerfile: Dockerfile
     container_name: intellistock_backend
     environment:
-      DATABASE_URL: postgresql://intellistock:intellistock_dev@postgres:5432/intellistock
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-here-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       API_HOST: 0.0.0.0
       API_PORT: 8000
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RATE_LIMIT_LOGIN_REQUESTS: ${RATE_LIMIT_LOGIN_REQUESTS:-5}
+      RATE_LIMIT_LOGIN_WINDOW_SECONDS: ${RATE_LIMIT_LOGIN_WINDOW_SECONDS:-60}
     ports:
       - "8000:8000"
     depends_on:
@@ -55,12 +58,13 @@ services:
       - intellistock
 
   frontend:
+    profiles: ["frontend"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: intellistock_frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      VITE_API_URL: http://localhost:8000/api/v1
     ports:
       - "3000:3000"
     depends_on:

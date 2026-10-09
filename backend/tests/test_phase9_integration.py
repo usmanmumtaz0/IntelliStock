@@ -29,7 +29,11 @@ client = TestClient(app)
 def db():
     """Initialize database."""
     init_db()
-    return SessionLocal()
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture

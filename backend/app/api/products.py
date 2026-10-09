@@ -8,6 +8,7 @@ from typing import List
 from app.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.core.security import require_roles
 
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
@@ -28,7 +29,12 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
     return product
 
 
-@router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ProductResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("admin", "manager"))],
+)
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
     """Create a new product."""
     # Check for duplicate SKU
@@ -43,7 +49,11 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db)):
     return db_product
 
 
-@router.put("/{product_id}", response_model=ProductResponse)
+@router.put(
+    "/{product_id}",
+    response_model=ProductResponse,
+    dependencies=[Depends(require_roles("admin", "manager"))],
+)
 def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db)):
     """Update a product."""
     db_product = db.query(Product).filter(Product.id == product_id).first()
@@ -59,7 +69,11 @@ def update_product(product_id: str, product: ProductUpdate, db: Session = Depend
     return db_product
 
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles("admin"))],
+)
 def delete_product(product_id: str, db: Session = Depends(get_db)):
     """Delete a product."""
     db_product = db.query(Product).filter(Product.id == product_id).first()

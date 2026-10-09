@@ -1,371 +1,163 @@
 # IntelliStock API Reference
 
-**Base URL:** `http://localhost:8000/api/v1`
-**OpenAPI Docs:** `http://localhost:8000/docs`
+Base URL: `http://localhost:8000/api/v1`
+
+Interactive OpenAPI documentation is available at `/docs`.
+
+## Public endpoints
+
+Only these endpoints are intentionally public:
+
+- `GET /health` and `GET /api/v1/health`: liveness/readiness checks needed by deployment infrastructure.
+- `POST /api/v1/auth/login`: obtains an access token.
+- `/docs`, `/redoc`, and `/openapi.json`: API documentation; disable these at the deployment edge if the API must not expose its schema publicly.
+
+Detailed health, inventory, product, camera, event, alert, agent, and audit endpoints require an active database user and a valid bearer token.
 
 ## Authentication
 
-Currently in development mode (no authentication). Phase 7+ will add JWT.
+### POST `/auth/login`
 
-```
-Authorization: Bearer <token>
-```
-
-## Response Format
-
-All responses are JSON:
+The login identifier is always a normalized email. Usernames and client-supplied roles are not accepted.
 
 ```json
 {
-  "status": "ok",
-  "data": {},
-  "error": null
+  "email": "operator@example.com",
+  "password": "user-supplied-password"
 }
 ```
 
----
+Successful response:
 
-## Endpoints
-
-### Health & Status
-
-#### GET /health
-```bash
-curl http://localhost:8000/health
-```
-
-Returns system health status.
-
-### Dashboard
-
-#### GET /dashboard/metrics
-Aggregated KPI metrics for the overview screen.
-
-**Response:**
 ```json
 {
-  "total_skus": 470,
-  "active_cameras": 7,
-  "total_cameras": 8,
-  "low_stock_alerts": 3,
-  "reconciliation_confidence": 93.5
+  "access_token": "signed-jwt",
+  "token_type": "bearer",
+  "user_id": "uuid",
+  "username": "operator",
+  "email": "operator@example.com",
+  "role": "staff"
 }
 ```
 
-#### GET /dashboard/store-info
-Store/location metadata.
+Send the token on subsequent requests:
 
-**Response:**
-```json
-{
-  "name": "IntelliStock",
-  "location": "Downtown Flagship",
-  "floor": "Floor 1"
-}
+```http
+Authorization: Bearer signed-jwt
 ```
 
-### Zones (Shelves)
+Authentication failures return the same `401` message for unknown emails, wrong passwords, and inactive users. Missing, expired, malformed, or tampered tokens also return `401`. An authenticated user without the required role receives `403`.
 
-#### GET /zones
-List all shelf zones with health status.
+### Role policy
 
-**Query Params:**
-- (none)
+| Operation | Staff | Manager | Admin |
+|---|---:|---:|---:|
+| Read operational resources | Yes | Yes | Yes |
+| Create/update products and cameras | No | Yes | Yes |
+| Submit reconciliation through the test API | No | Yes | Yes |
+| Delete products and cameras | No | No | Yes |
+| Read audit and detailed health records | No | No | Yes |
 
-**Response:**
+## Inventory contract
+
+### GET `/inventory`
+
+Query parameters:
+
+- `zone_id`: optional exact zone ID.
+- `product_id`: optional exact product ID.
+- `status`: optional inventory state enum.
+- `limit`: 1–500, default 100.
+- `offset`: zero or greater, default 0.
+
+The body remains a JSON array for backward compatibility. Pagination metadata is returned in `X-Total-Count` and `Content-Range` headers.
+
 ```json
 [
   {
-    "id": "A-1",
-    "name": "A-1",
-    "description": "Beverages · Water & Soda",
-    "camera_id": "CAM-01",
-    "camera_name": "Aisle A · North",
-    "health": "healthy",
-    "skus": 14,
-    "confidence": 97.0,
-    "aisle": "A",
-    "label": "Beverages · Water & Soda"
-  }
-]
-```
-
-Health values: `healthy` | `low` | `offline` | `pending`
-
-#### GET /zones/{zone_id}
-Get a specific zone.
-
-### Inventory
-
-#### GET /inventory
-List all inventory records.
-
-**Query Params:**
-- `zone_id` (optional): Filter by zone
-- `product_id` (optional): Filter by product
-- `status` (optional): Filter by status
-
-**Response:**
-```json
-[
-  {
-    "id": "inv-123",
-    "zone_id": "A-1",
-    "product_id": "prod-456",
-    "quantity_estimate": 48,
-    "confidence": 0.97,
-    "status": "adequate",
-    "last_observation_time": "2026-10-07T15:30:00Z",
-    "observations_count": 120
-  }
-]
-```
-
-Status values: `unknown` | `adequate` | `low_stock` | `out_of_stock` | `detection_uncertain` | `camera_offline`
-
-#### POST /inventory/reconcile
-Test reconciliation of an observation.
-
-**Request:**
-```json
-{
-  "camera_id": "CAM-01",
-  "zone_id": "A-1",
-  "product_id": "prod-456",
-  "observed_quantity": 48,
-  "confidence": 0.95
-}
-```
-
-### Alerts
-
-#### GET /alerts
-List all active alerts.
-
-**Query Params:**
-- `acknowledged` (optional): Filter by true/false
-
-**Response:**
-```json
-[
-  {
-    "id": "al-001",
-    "type": "low_stock",
-    "severity": "warning",
-    "title": "Low stock: Lay's Classic",
-    "detail": "Verified count 9, below threshold 18",
-    "zone": "A-3",
-    "sku": "SNK-2011",
-    "min_ago": 3,
-    "acknowledged": false
-  }
-]
-```
-
-Alert types: `low_stock` | `camera_offline` | `anomaly`
-Severities: `critical` | `warning` | `info`
-
-#### POST /alerts/{alert_id}/acknowledge
-Mark an alert as acknowledged.
-
-#### POST /alerts/acknowledge-all
-Acknowledge all alerts.
-
-### Events (Activity Feed)
-
-#### GET /events
-List recent reconciliation events.
-
-**Query Params:**
-- `limit` (default: 30, max: 100): Results to return
-
-**Response:**
-```json
-[
-  {
-    "id": "evt-001",
-    "zone": "A-3",
-    "product": "Lay's Classic Salted 52g",
-    "from_qty": 12,
-    "to_qty": 9,
-    "confidence": 96.0,
-    "min_ago": 3
-  }
-]
-```
-
-#### GET /events/zone/{zone_id}
-Filter events by zone.
-
-#### GET /events/product/{product_id}
-Filter events by product.
-
-### Cameras
-
-#### GET /cameras
-List all cameras.
-
-**Response:**
-```json
-[
-  {
-    "id": "CAM-01",
-    "name": "Aisle A · North",
-    "location": "Floor 1 · Aisle A · Bay 1–2",
-    "is_active": true,
-    "fps": 24,
-    "offline_timeout_seconds": 30
-  }
-]
-```
-
-#### POST /cameras
-Create a new camera.
-
-#### PUT /cameras/{camera_id}
-Update camera configuration.
-
-#### DELETE /cameras/{camera_id}
-Delete a camera.
-
-### Products
-
-#### GET /products
-List all products (SKUs).
-
-**Response:**
-```json
-[
-  {
-    "id": "prod-456",
+    "id": "inventory-uuid",
+    "zone_id": "zone-uuid",
+    "product_id": "product-uuid",
     "sku": "BEV-1042",
-    "name": "Coca-Cola Classic 330ml Can",
-    "category": "Beverages"
+    "name": "Example Product",
+    "current_quantity": 12,
+    "threshold": 5,
+    "status": "adequate",
+    "verified": true,
+    "pending_quantity": null,
+    "confidence": 0.92,
+    "last_observation_time": "2026-10-09T10:30:00Z",
+    "observations_count": 3,
+    "updated_at": "2026-10-09T10:30:00Z"
   }
 ]
 ```
 
-#### POST /products
-Create a new product.
+`current_quantity` is the PostgreSQL-backed trusted quantity and is changed only by reconciliation. `verified` is true only when the record is in a stable inventory state (`adequate`, `low_stock`, or `out_of_stock`), has at least the minimum reconciliation observations, meets the reconciliation confidence threshold, and has a recorded observation time.
 
-#### PUT /products/{product_id}
-Update product details.
+`pending_quantity` is a differing latest observation from the transient Redis window. It is nullable, is not authoritative, and does not replace `current_quantity`. Missing product relationships produce nullable `sku`, `name`, and `threshold` rather than invented values.
 
-#### DELETE /products/{product_id}
-Delete a product.
+Invalid enum values or pagination values return `422`.
 
-### Agents (AI / LLM)
+Other inventory routes:
 
-#### GET /agents/runs
-List agent execution history (for FYP evaluation).
+- `GET /inventory/{inventory_id}`
+- `GET /inventory/zone/{zone_id}`
+- `GET /inventory/product/{product_id}`
+- `GET /inventory/status/low-stock`
+- `POST /inventory/reconcile` (manager/admin; testing and integration endpoint)
 
-**Query Params:**
-- `agent_type`: Filter by agent type
-- `status`: Filter by status
-- `limit`: Max results (default: 50, max: 500)
-- `hours`: Look back (default: 24)
+## Frontend field mapping
 
-**Response:**
-```json
-[
-  {
-    "id": "run-001",
-    "agent_type": "insight",
-    "status": "completed",
-    "trigger_event": "low_stock_detected",
-    "output_action": "recommend_restock",
-    "confidence_score": 0.95,
-    "execution_time_ms": 250,
-    "created_at": "2026-10-07T15:30:00Z"
-  }
-]
-```
+Python code and database models use snake_case. Pydantic response aliases define the only JSON mapping for activity and alert fields:
 
-#### GET /agents/runs/{run_id}
-Get details of a specific agent run.
+| Python field | JSON field |
+|---|---|
+| `from_qty` | `from` |
+| `to_qty` | `to` |
+| `min_ago` | `minAgo` |
 
-#### GET /agents/runs/{run_id}/trace
-Get full execution trace (for debugging).
+The API does not emit duplicate snake_case and camelCase versions. Unknown event quantities are returned as `null`; the server does not fabricate zero quantities.
 
-#### GET /agents/stats
-Get agent performance statistics.
+## Endpoint groups
 
-**Query Params:**
-- `hours`: Stats period (default: 24)
+All routes below require bearer authentication unless the public list above says otherwise.
 
-**Response:**
-```json
-{
-  "period_hours": 24,
-  "total_runs": 127,
-  "completed": 121,
-  "failed": 6,
-  "success_rate": 0.953,
-  "by_agent_type": {
-    "supervisor": 127,
-    "insight": 45,
-    "anomaly": 32,
-    "notification": 44
-  },
-  "average_confidence": 0.942
-}
-```
+- Dashboard: `GET /dashboard/metrics`, `GET /dashboard/store-info`
+- Zones: `GET /zones`, `GET /zones/{zone_id}`
+- Products: list/get; manager/admin create/update; admin delete
+- Cameras: list/get; manager/admin create/update; admin delete
+- Alerts: query, acknowledge, resolve, and dismiss
+- Events: `GET /events`, `/events/zone/{zone_id}`, `/events/product/{product_id}`
+- Inventory history: recent, by zone/product/type, and depletion metrics
+- Agents: run history, trace, and statistics
+- Audit and detailed health: admin only
 
-### WebSocket
+## WebSocket
 
-#### WS /ws
-Real-time event stream.
+Connect to `WS /ws/inventory`. Authentication is required before the socket is accepted. Browser clients may provide an access token through the `token` query parameter; non-browser clients may use `Authorization: Bearer ...`.
 
-**Connect:**
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws');
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log(data);
-};
+const socket = new WebSocket(
+  `ws://localhost:8000/ws/inventory?token=${encodeURIComponent(accessToken)}`,
+);
 ```
 
-**Message Types:**
-- `inventory_update`: Inventory state changed
-- `alert_created`: New alert generated
-- `camera_status`: Camera heartbeat or offline
-- `agent_event`: Agent execution event
+Use TLS (`wss://`) in production. Because query parameters may be recorded by proxies, configure access logs to redact the `token` parameter and prefer an authorization header when the client supports it.
 
----
+## Rate limiting
 
-## Error Responses
+Login attempts are limited on the effective `/api/v1/auth/login` route by both direct peer IP and a SHA-256 digest of the normalized email. Limits are configured with `RATE_LIMIT_LOGIN_REQUESTS` and `RATE_LIMIT_LOGIN_WINDOW_SECONDS`.
 
-Errors follow HTTP status codes:
+Redis provides shared counters across workers. If Redis is unavailable, the application logs a warning and uses a process-local fallback; that fallback cannot coordinate multiple workers. Arbitrary forwarded IP headers are ignored unless `TRUSTED_PROXY_HEADERS=true` is deliberately configured behind a trusted proxy.
 
-- `400 Bad Request`: Invalid parameters
-- `404 Not Found`: Resource doesn't exist
-- `500 Internal Server Error`: Server error (check logs)
+A blocked request returns:
 
-Error response body:
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+```
+
 ```json
-{
-  "detail": "Error message here"
-}
+{"detail": "Too many login attempts. Please try again later."}
 ```
-
----
-
-## Rate Limiting
-
-Not currently enforced (Phase 8 feature). Will implement in hardening pass.
-
----
-
-## Pagination
-
-Not currently implemented. Use `limit` parameter on list endpoints.
-
----
-
-## Versioning
-
-API version: `v1` (embedded in path `/api/v1/`)
-
-Future versions will use `/api/v2/`, etc.
-

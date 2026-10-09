@@ -2,8 +2,10 @@
 WebSocket endpoint for real-time inventory updates.
 """
 import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.core.security import validate_websocket_token
 from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
@@ -13,36 +15,32 @@ router = APIRouter(tags=["websocket"])
 
 @router.websocket("/ws/inventory")
 async def websocket_inventory_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time inventory updates.
-    
-    Clients connect and receive live events:
-    - Stock updates
-    - Low stock alerts
-    - Out of stock alerts
-    - Camera status changes
-    
-    Usage:
-        ws://localhost:8000/ws/inventory
-    """
+    """WebSocket endpoint for real-time inventory updates."""
+    token = websocket.query_params.get("token") or websocket.headers.get("authorization")
+    if not token:
+        await websocket.close(code=4401)
+        return
+
+    if token.lower().startswith("bearer "):
+        token = token[7:]
+
+    if not validate_websocket_token(token):
+        await websocket.close(code=4401)
+        return
+
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive
             data = await websocket.receive_text()
-            
-            # Echo back or process client messages if needed
             if data == "ping":
                 await websocket.send_text("pong")
                 logger.debug("WebSocket ping/pong")
-    
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         logger.info("WebSocket client disconnected")
-    
-    except Exception as e:
+    except Exception as exc:
         manager.disconnect(websocket)
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error: {exc}")
 
 
 @router.on_event("startup")

@@ -22,10 +22,12 @@ def test_health_endpoint(client):
     assert data["redis"] in ["connected", "disconnected"]
 
 
-def test_health_endpoint_all_connected(client):
+def test_health_endpoint_all_connected(client, monkeypatch):
     """
     Test that /health returns "ok" status when all services are connected.
     """
+    monkeypatch.setattr("app.main.check_database", lambda: True)
+    monkeypatch.setattr("app.main.check_redis", lambda: True)
     response = client.get("/health")
     
     assert response.status_code == 200
@@ -37,10 +39,12 @@ def test_health_endpoint_all_connected(client):
     assert data["redis"] == "connected"
 
 
-def test_api_health_endpoint(client):
+def test_api_health_endpoint(client, monkeypatch):
     """
     Test that GET /api/v1/health returns the same response as /health.
     """
+    monkeypatch.setattr("app.main.check_database", lambda: True)
+    monkeypatch.setattr("app.main.check_redis", lambda: True)
     response = client.get("/api/v1/health")
     
     assert response.status_code == 200

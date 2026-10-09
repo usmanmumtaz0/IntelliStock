@@ -2,8 +2,8 @@
 Audit log model — track all state-changing operations for compliance and debugging.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, DateTime, JSON, String, Text, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 import uuid
 
 from app.models.base import Base
@@ -29,13 +29,13 @@ class AuditLog(Base):
     """
     __tablename__ = "audit_logs"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(String(255), nullable=False, index=True)
     action = Column(String(50), nullable=False, index=True)  # create, update, delete, login, logout
     resource_type = Column(String(50), nullable=False, index=True)  # product, camera, inventory, etc.
     resource_id = Column(String(255), nullable=True, index=True)
-    old_values = Column(JSONB, nullable=True)  # Previous state
-    new_values = Column(JSONB, nullable=True)  # New state
+    old_values = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)  # Previous state
+    new_values = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)  # New state
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6
     user_agent = Column(Text, nullable=True)
     status = Column(String(20), default="success")  # success, failure

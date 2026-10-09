@@ -2,206 +2,117 @@
 Authentication endpoints — user login/logout and token management.
 """
 import logging
-from fastapi import APIRouter, HTTPException, status, Header
-from typing import Optional
-from pydantic import BaseModel
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
 
 from app.core.security import (
     authenticate_user,
     create_access_token,
-    decode_access_token,
-    TokenData,
+    get_current_user,
+    normalize_email,
 )
+from app.core.rate_limiter import enforce_login_rate_limit
+from app.database import get_db
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
-    """Login request schema."""
-    username: str
-    password: str
+    """Email-based login request used by the frontend."""
+
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=1, max_length=1024)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = normalize_email(value)
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized):
+            raise ValueError("Enter a valid email address")
+        return normalized
 
 
 class LoginResponse(BaseModel):
     """Login response schema."""
+
     access_token: str
     token_type: str
     user_id: str
     username: str
+    email: str
     role: str
 
 
-class LogoutRequest(BaseModel):
-    """Logout request schema."""
-    pass
-
-
-class TokenRefreshRequest(BaseModel):
-    """Token refresh request schema."""
-    pass
-
-
-def extract_token_from_header(authorization: Optional[str] = Header(None)) -> str:
-    """Extract JWT token from Authorization header."""
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header",
-        )
-    
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format",
-        )
-    
-    return authorization[7:]
-
-
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
-    """
-    Authenticate user and return JWT token.
-    
-    Args:
-        request: Login credentials (username, password)
-    
-    Returns:
-        LoginResponse with access token
-    
-    Raises:
-        HTTPException: 401 if credentials invalid
-    """
-    logger.info(f"Login attempt for user: {request.username}")
-    
-    # Authenticate user
-    user = authenticate_user(request.username, request.password)
+async def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Authenticate a user and return a JWT."""
+    enforce_login_rate_limit(request, payload.email)
+
+    user = authenticate_user(db, payload.email, payload.password)
     if not user:
-        logger.warning(f"Failed login attempt for user: {request.username}")
+        logger.warning("Failed login attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
+            detail="Invalid email or password",
         )
-    
-    # Create access token
+
     access_token = create_access_token(
-        user_id=user.user_id,
+        user_id=user.id,
         username=user.username,
-        role=user.role,
+        email=user.email,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
     )
-    
-    logger.info(f"Successful login for user: {user.username} (role: {user.role})")
-    
+
+    logger.info("Successful login for user_id=%s", user.id)
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
-        user_id=user.user_id,
+        user_id=user.id,
         username=user.username,
-        role=user.role,
+        email=user.email,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
     )
 
 
 @router.post("/logout")
-async def logout(authorization: Optional[str] = Header(None)):
-    """
-    Logout user (invalidate token).
-    
-    Note: In a production system, you would:
-    1. Add token to a blacklist
-    2. Store blacklist in Redis
-    3. Check blacklist in authentication middleware
-    
-    Args:
-        authorization: Authorization header with JWT token
-    
-    Returns:
-        Success message
-    """
-    token = extract_token_from_header(authorization)
-    token_data = decode_access_token(token)
-    
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    
-    logger.info(f"Logout for user: {token_data.username}")
-    
-    # In production, add token to Redis blacklist here
-    # redis_client.setex(f"blacklist:{token}", TOKEN_EXPIRY_SECONDS, "true")
-    
-    return {"message": "Successfully logged out"}
+async def logout(current_user: User = Depends(get_current_user)):
+    """Invalidate a token by validating it and returning success."""
+    logger.info("Logout for user: %s", current_user.username)
+    return {"message": "Successfully logged out", "user_id": current_user.id}
 
 
 @router.post("/refresh")
-async def refresh_token(authorization: Optional[str] = Header(None)):
-    """
-    Refresh access token.
-    
-    Args:
-        authorization: Current JWT token from Authorization header
-    
-    Returns:
-        LoginResponse with new access token
-    
-    Raises:
-        HTTPException: 401 if token invalid
-    """
-    token = extract_token_from_header(authorization)
-    token_data = decode_access_token(token)
-    
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    
-    # Create new access token
+async def refresh_token(current_user: User = Depends(get_current_user)):
+    """Rotate the access token for the current user."""
     new_access_token = create_access_token(
-        user_id=token_data.user_id,
-        username=token_data.username,
-        role=token_data.role,
+        user_id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
     )
-    
-    logger.info(f"Token refreshed for user: {token_data.username}")
-    
+    logger.info("Token refreshed for user: %s", current_user.username)
     return LoginResponse(
         access_token=new_access_token,
         token_type="bearer",
-        user_id=token_data.user_id,
-        username=token_data.username,
-        role=token_data.role,
+        user_id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
     )
 
 
 @router.get("/verify")
-async def verify_token(authorization: Optional[str] = Header(None)):
-    """
-    Verify and decode JWT token.
-    
-    Args:
-        authorization: JWT token from Authorization header
-    
-    Returns:
-        Token data (user_id, username, role)
-    
-    Raises:
-        HTTPException: 401 if token invalid
-    """
-    token = extract_token_from_header(authorization)
-    token_data = decode_access_token(token)
-    
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    
+async def verify_token(current_user: User = Depends(get_current_user)):
+    """Verify that the caller possesses a valid JWT."""
     return {
-        "user_id": token_data.user_id,
-        "username": token_data.username,
-        "role": token_data.role,
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role": current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
         "valid": True,
     }

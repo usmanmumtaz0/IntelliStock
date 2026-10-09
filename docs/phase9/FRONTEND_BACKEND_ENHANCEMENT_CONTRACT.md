@@ -345,7 +345,7 @@ Authorization: Bearer {jwt_token}
 
 Get token:
 POST /api/v1/auth/login
-Body: { username: "admin", password: "admin123" }
+Body: { email: "you@example.com", password: "<user-supplied-password>" }
 Returns: { access_token: "...", token_type: "bearer" }
 ```
 
@@ -443,7 +443,7 @@ Frontend:
 # Get JWT token
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"email":"you@example.com","password":"<user-supplied-password>"}'
 
 # Use token in requests
 curl -H "Authorization: Bearer {token}" \

@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** Phase 8 (Hardening & Docs) — ✅ COMPLETE
-**Last Updated:** Oct 7, 2026 | Phases 7-8 implementation complete | Ready for MVP deployment
+**Currently On:** E2E integration — backend hardening verified; frontend source still missing
+**Last Updated:** Oct 9, 2026 | Security/config/auth/API/migrations complete | 106 backend tests passing
 
 ---
 
@@ -65,8 +65,19 @@
 
 ### EPIC 8 — Hardening & Docs
 - [x] `HARD-001` Security pass (rate limiting, CORS, audit logs) — **CORS configured, audit logging ready** ✅
-- [x] `HARD-002` Final test coverage audit — **All API endpoints verified, backend tests passing** ✅
+- [x] `HARD-002` Final test coverage audit — **Historical test claim; current hardening suite still needs execution** ⚠️
 - [x] `HARD-003` Documentation set — **README.md, API_REFERENCE.md, DEPLOYMENT.md created** ✅
+
+### Backend Hardening Remediation (Oct 9, 2026)
+- [x] `SEC-001` Remove automatic/demo users; require database-backed email login, Argon2id hashing, JWT validation, active-user checks, RBAC, and authenticated WebSockets
+- [x] `SEC-002` Apply Redis-backed IP/account login throttling to `/api/v1/auth/login` with a documented per-process fallback
+- [x] `CFG-001` Remove embedded database/JWT defaults from source and Compose; add secure administrator provisioning and credential-rotation guidance
+- [x] `INV-API-001` Add inventory fields, precise verified/pending semantics, validated filtering, and backward-compatible header pagination
+- [x] `API-MAP-001` Centralize event/alert wire aliases (`from`, `to`, `minAgo`) and stop fabricating event quantities
+- [x] `DB-MIG-001` Add Alembic baseline and normalized-email uniqueness migration
+- [x] `TEST-SEC-001` Add isolated security, authorization, WebSocket, rate-limit, inventory-contract, alias, and migration regression tests
+- [x] `TEST-EXEC-001` Full backend verification — **106 passed** with Python 3.12
+- [ ] `FE-AUTH-001` Patch frontend token storage/401 handling — the documented `frontend/` source is not present in this checkout
 
 ---
 
@@ -84,7 +95,9 @@
 ## Known Issues / Gotchas
 *(append anything a future session needs to know to avoid re-discovering it)*
 
-- (none yet)
+- The current checkout has no tracked `frontend/` directory although older documentation described one.
+- Historical Git revisions contain credential-like values. Rotate affected credentials before any coordinated history rewrite.
+- Docker is unavailable in the current execution environment, so Docker Compose startup was not verified.
 
 ## Open Questions Still Pending From User
 - Camera footage source (real shelf vs. public dataset vs. self-recorded mock) — not yet answered

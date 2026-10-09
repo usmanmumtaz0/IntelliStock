@@ -1,18 +1,19 @@
-"""
-Database connection and session management.
-"""
+"""Database connection and session management."""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from app.core.config import settings
 from app.models.base import Base
 
-# Create engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=False,  # Set to True for SQL logging
-    pool_size=10,
-    max_overflow=20,
-)
+engine_options = {"pool_pre_ping": True}
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+else:
+    engine_options.update(
+        pool_size=settings.DATABASE_POOL_SIZE,
+        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    )
+
+engine = create_engine(settings.DATABASE_URL, echo=False, **engine_options)
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

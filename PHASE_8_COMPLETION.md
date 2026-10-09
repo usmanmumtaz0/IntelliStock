@@ -46,12 +46,9 @@ POST   /api/v1/auth/refresh    — Refresh expired token
 GET    /api/v1/auth/verify     — Verify token validity
 ```
 
-**Credentials (Development Only):**
-```
-admin  : admin123   (role: admin)
-manager: manager123 (role: manager)
-staff  : staff123   (role: staff)
-```
+**Provisioning:** No fixed development accounts exist. Create the initial
+administrator with `python -m scripts.create_admin`; administrators provision
+additional manager/staff records through an approved administrative workflow.
 
 **Test Coverage:**
 - ✅ Successful login with all roles
@@ -344,9 +341,9 @@ async def create_product(product: ProductCreate, user: TokenData = Depends()):
 
 ### 5. Set Proper Environment Variables
 ```bash
-export SECRET_KEY="your-256-bit-secret-key"
+export JWT_SECRET="<generated-random-value-of-at-least-32-characters>"
 export CORS_ORIGINS="https://yourdomain.com"
-export DATABASE_URL="postgresql://user:pass@host/db"
+export DATABASE_URL="postgresql://DB_USER:URL_ENCODED_PASSWORD@host/db"
 export REDIS_URL="redis://localhost:6379"
 ```
 
@@ -365,7 +362,7 @@ Deploy behind reverse proxy with TLS termination (nginx, AWS ALB, etc.)
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"email":"you@example.com","password":"<your-provisioned-password>"}'
 
 # Response:
 {

@@ -3,10 +3,11 @@ Health check utilities for database and Redis connectivity.
 """
 import logging
 
-import psycopg2
 import redis
+from sqlalchemy import text
 
 from app.core.config import settings
+from app.database.connection import engine
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +18,8 @@ def check_database() -> bool:
     Returns True if connection successful, False otherwise.
     """
     try:
-        conn = psycopg2.connect(settings.DATABASE_URL)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-        conn.close()
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
         logger.debug("Database connection check: OK")
         return True
     except Exception as e:
@@ -35,7 +33,12 @@ def check_redis() -> bool:
     Returns True if connection successful, False otherwise.
     """
     try:
-        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+            socket_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+        )
         r.ping()
         r.close()
         logger.debug("Redis connection check: OK")
