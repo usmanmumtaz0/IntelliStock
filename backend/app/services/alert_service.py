@@ -231,6 +231,50 @@ class AlertService:
         
         return records, total
 
+    def list_alerts(
+        self,
+        *,
+        status: AlertStatus | None = None,
+        severity: AlertSeverity | None = None,
+        alert_type: AlertType | None = None,
+        zone_id: str | None = None,
+        product_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Tuple[List[Alert], int]:
+        """List persistent alerts using validated lifecycle filters."""
+        query = self.db.query(Alert)
+        if status is not None:
+            query = query.filter(Alert.status == status)
+        if severity is not None:
+            query = query.filter(Alert.severity == severity)
+        if alert_type is not None:
+            query = query.filter(Alert.alert_type == alert_type)
+        if zone_id:
+            query = query.filter(Alert.zone_id == zone_id)
+        if product_id:
+            query = query.filter(Alert.product_id == product_id)
+
+        total = query.count()
+        records = (
+            query.order_by(desc(Alert.created_at))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return records, total
+
+    def acknowledge_all(self, user_id: str) -> int:
+        """Acknowledge every currently open alert and return the affected count."""
+        alerts = self.db.query(Alert).filter(Alert.status == AlertStatus.OPEN).all()
+        acknowledged_at = datetime.utcnow()
+        for alert in alerts:
+            alert.status = AlertStatus.ACKNOWLEDGED
+            alert.acknowledged_by_user = user_id
+            alert.acknowledged_at = acknowledged_at
+        self.db.commit()
+        return len(alerts)
+
     def get_alerts_by_zone(
         self,
         zone_id: str,

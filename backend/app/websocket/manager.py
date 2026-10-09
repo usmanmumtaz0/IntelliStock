@@ -4,6 +4,7 @@ Broadcasts events from Redis to connected clients.
 """
 import json
 import logging
+import asyncio
 import threading
 from typing import Set
 import redis
@@ -23,6 +24,7 @@ class ConnectionManager:
         self.redis_client = None
         self.broadcast_thread = None
         self.running = False
+        self.event_loop: asyncio.AbstractEventLoop | None = None
     
     async def connect(self, websocket: WebSocket):
         """Accept a new WebSocket connection."""
@@ -58,6 +60,12 @@ class ConnectionManager:
             logger.warning("Redis listener already running")
             return
         
+        try:
+            self.event_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.error("WebSocket listener must start from the application event loop")
+            return
+
         self.running = True
         self.redis_client = redis.from_url(
             __import__("app.core.config", fromlist=["settings"]).settings.REDIS_URL,
@@ -72,6 +80,7 @@ class ConnectionManager:
             args=(pubsub,),
             daemon=True
         )
+        self.broadcast_thread = thread
         thread.start()
         logger.info("Redis listener started")
     
@@ -80,6 +89,10 @@ class ConnectionManager:
         self.running = False
         if self.redis_client:
             self.redis_client.close()
+        if self.broadcast_thread and self.broadcast_thread.is_alive():
+            self.broadcast_thread.join(timeout=1.0)
+        self.broadcast_thread = None
+        self.event_loop = None
         logger.info("Redis listener stopped")
     
     def _redis_listen_loop(self, pubsub):
@@ -92,15 +105,26 @@ class ConnectionManager:
                 if message["type"] == "message":
                     try:
                         event = json.loads(message["data"])
-                        # Broadcast to WebSocket clients
-                        import asyncio
-                        # Schedule broadcast in event loop (this is a simplified version)
-                        logger.debug(f"Broadcasting event: {event.get('event_type')}")
+                        if self.event_loop and not self.event_loop.is_closed():
+                            future = asyncio.run_coroutine_threadsafe(
+                                self.broadcast(event),
+                                self.event_loop,
+                            )
+                            future.add_done_callback(self._log_broadcast_result)
+                            logger.debug("Queued WebSocket event: %s", event.get("event_type"))
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse Redis message: {e}")
         except Exception as e:
             logger.error(f"Redis listener error: {e}")
             self.running = False
+
+    @staticmethod
+    def _log_broadcast_result(future):
+        """Surface asynchronous broadcast failures from the Redis thread."""
+        try:
+            future.result()
+        except Exception as exc:
+            logger.error("WebSocket broadcast failed: %s", exc)
 
 
 # Global connection manager

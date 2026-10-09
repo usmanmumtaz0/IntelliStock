@@ -22,8 +22,8 @@ class AgentRunResponse(BaseModel):
     output_action: Optional[str]
     confidence_score: Optional[float]
     execution_time_ms: Optional[int]
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

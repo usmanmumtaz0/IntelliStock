@@ -51,20 +51,19 @@ class AlertPaginationResponse(BaseModel):
         from_attributes = True
 
 
+class AlertActionResponse(BaseModel):
+    """Result of a persistent alert lifecycle mutation."""
+
+    status: str
+    alert_id: Optional[str] = None
+    affected: int = 1
+    message: str
+
+
 class AlertStatsResponse(BaseModel):
     """Alert statistics."""
     total_alerts: int
     open_alerts: int
     critical: int
     high: int
-    by_type: dict
-
-
-class AlertAcknowledgeRequest(BaseModel):
-    """Request to acknowledge alert."""
-    user_id: str
-
-
-class AlertResolveRequest(BaseModel):
-    """Request to resolve alert."""
-    user_id: str
+    by_type: dict[str, int]

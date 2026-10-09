@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import agents, alert_api, alerts, audit_api, auth, cameras, dashboard, events, health_api, inventory, inventory_history, products, zones
+from app.api import agents, alert_api, audit_api, auth, cameras, dashboard, events, health_api, inventory, inventory_history, products, zones
 from app.api.websocket import router as ws_router
 from app.core.config import settings
 from app.core.health import check_database, check_redis
@@ -110,7 +110,6 @@ app.include_router(alert_api.router, dependencies=protected)
 app.include_router(audit_api.router, dependencies=[Depends(require_roles("admin"))])
 app.include_router(health_api.router, dependencies=[Depends(require_roles("admin"))])
 app.include_router(zones.router, dependencies=protected)
-app.include_router(alerts.router, dependencies=protected)
 app.include_router(events.router, dependencies=protected)
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(agents.router, dependencies=protected)

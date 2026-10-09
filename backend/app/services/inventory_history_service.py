@@ -60,6 +60,7 @@ class InventoryHistoryService:
         reconciled_qty: int,
         event_id: str,
         confidence: float = 0.95,
+        commit: bool = True,
     ) -> InventoryHistory:
         """Record reconciliation engine update."""
         history = InventoryHistory(
@@ -76,7 +77,8 @@ class InventoryHistoryService:
             actor_system="reconciliation_engine",
         )
         self.db.add(history)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         logger.info(
             f"Recorded reconciliation: {zone_id}/{product_id} {previous_qty}→{reconciled_qty}"
         )

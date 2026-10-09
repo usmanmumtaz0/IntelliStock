@@ -55,6 +55,7 @@ Authentication failures return the same `401` message for unknown emails, wrong 
 | Read operational resources | Yes | Yes | Yes |
 | Create/update products and cameras | No | Yes | Yes |
 | Submit reconciliation through the test API | No | Yes | Yes |
+| Acknowledge/resolve/dismiss alerts | No | Yes | Yes |
 | Delete products and cameras | No | No | Yes |
 | Read audit and detailed health records | No | No | Yes |
 
@@ -127,7 +128,7 @@ All routes below require bearer authentication unless the public list above says
 - Zones: `GET /zones`, `GET /zones/{zone_id}`
 - Products: list/get; manager/admin create/update; admin delete
 - Cameras: list/get; manager/admin create/update; admin delete
-- Alerts: query, acknowledge, resolve, and dismiss
+- Alerts: `GET /alerts` with lifecycle filters and pagination; manager/admin acknowledge, acknowledge-all, resolve, and dismiss mutations
 - Events: `GET /events`, `/events/zone/{zone_id}`, `/events/product/{product_id}`
 - Inventory history: recent, by zone/product/type, and depletion metrics
 - Agents: run history, trace, and statistics
@@ -144,6 +145,8 @@ const socket = new WebSocket(
 ```
 
 Use TLS (`wss://`) in production. Because query parameters may be recorded by proxies, configure access logs to redact the `token` parameter and prefer an authorization header when the client supports it.
+
+Inventory events use a versioned envelope. `type`, `version`, `occurred_at`, and `data` are stable envelope fields; the version-1 payload is also present at the top level for compatibility with existing consumers. Clients should use the envelope and refetch authoritative REST resources after an event rather than treating a camera event as inventory truth.
 
 ## Rate limiting
 

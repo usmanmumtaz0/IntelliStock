@@ -3,11 +3,15 @@ Reconciliation Logic Service (INV-002)
 Validates observations and reconciles them into trusted inventory state.
 Core rule: YOLO output is observation, not truth. Reconciliation engine decides what's real.
 """
+import json
 import logging
 from datetime import datetime
 from typing import Optional, Tuple
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
+from app.events.publisher import publish_stock_updated
+from app.models.event import EventType, InventoryEvent
 from app.models.inventory import Inventory, InventoryStatus
 from app.models.product import Product
 from app.models.camera import Camera
@@ -104,6 +108,7 @@ class ReconciliationEngine:
         
         # ✅ ACCEPTED: Update inventory state
         success = self._update_inventory_state(
+            camera_id=camera_id,
             zone_id=zone_id,
             product_id=product_id,
             quantity_estimate=consensus_qty,
@@ -122,6 +127,7 @@ class ReconciliationEngine:
     
     def _update_inventory_state(
         self,
+        camera_id: str,
         zone_id: str,
         product_id: str,
         quantity_estimate: int,
@@ -144,7 +150,7 @@ class ReconciliationEngine:
                 self.db.add(inv)
             
             # Update state
-            prev_qty = inv.quantity_estimate
+            prev_qty = inv.quantity_estimate if inv.quantity_estimate is not None else 0
             inv.quantity_estimate = quantity_estimate
             inv.confidence = confidence
             inv.observations_count = observations_count
@@ -153,17 +159,48 @@ class ReconciliationEngine:
             # Apply state machine logic
             self._apply_state_transition(inv)
             
-            self.db.commit()
-            
-            if prev_qty is not None and prev_qty != quantity_estimate:
-                # Record history for quantity changes
+            quantity_changed = prev_qty != quantity_estimate
+            event_id = str(uuid4())
+            if quantity_changed:
+                # Persist the history and event in the inventory transaction.
                 history_service = InventoryHistoryService(self.db)
                 history_service.record_reconciliation(
                     zone_id=zone_id,
                     product_id=product_id,
                     previous_qty=prev_qty,
                     reconciled_qty=quantity_estimate,
-                    event_id=f"reconcile-{datetime.utcnow().timestamp()}",
+                    event_id=event_id,
+                    confidence=confidence,
+                    commit=False,
+                )
+
+                self.db.add(
+                    InventoryEvent(
+                        id=event_id,
+                        event_type=EventType.STOCK_UPDATED,
+                        camera_id=camera_id,
+                        zone_id=zone_id,
+                        product_id=product_id,
+                        previous_state=f"qty={prev_qty}",
+                        new_state=f"qty={quantity_estimate}",
+                        confidence=confidence,
+                        extra_data=json.dumps(
+                            {
+                                "previous_quantity": prev_qty,
+                                "new_quantity": quantity_estimate,
+                            }
+                        ),
+                    )
+                )
+
+            self.db.commit()
+
+            if quantity_changed:
+                publish_stock_updated(
+                    camera_id=camera_id,
+                    zone_id=zone_id,
+                    product_id=product_id,
+                    quantity=quantity_estimate,
                     confidence=confidence,
                 )
                 

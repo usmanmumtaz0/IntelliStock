@@ -3,6 +3,7 @@ Event publisher for Redis pub/sub.
 """
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict
 import redis
 
@@ -12,7 +13,12 @@ from app.models.event import EventType
 logger = logging.getLogger(__name__)
 
 # Redis client for pub/sub
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True,
+    socket_connect_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+    socket_timeout=settings.REDIS_SOCKET_TIMEOUT_SECONDS,
+)
 
 INVENTORY_CHANNEL = "inventory.events"
 
@@ -44,9 +50,10 @@ def publish_event(
         bool: True if published successfully
     """
     try:
-        event_payload = {
+        occurred_at = datetime.now(timezone.utc).isoformat()
+        event_data = {
             "event_type": event_type.value,
-            "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+            "timestamp": occurred_at,
             "camera_id": camera_id,
             "zone_id": zone_id,
             "product_id": product_id,
@@ -54,6 +61,13 @@ def publish_event(
             "new_state": new_state,
             "confidence": confidence,
             "extra_data": extra_data or {},
+        }
+        event_payload = {
+            "type": event_type.value,
+            "version": 1,
+            "occurred_at": occurred_at,
+            "data": event_data,
+            **event_data,
         }
         
         # Publish to Redis channel

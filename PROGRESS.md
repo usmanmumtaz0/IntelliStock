@@ -2,8 +2,8 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** E2E integration — backend hardening verified; frontend source still missing
-**Last Updated:** Oct 9, 2026 | Security/config/auth/API/migrations complete | 106 backend tests passing
+**Currently On:** E2E data validation — authenticated frontend/backend integration is complete; recorded camera/dataset replay remains
+**Last Updated:** Oct 9, 2026 | Frontend, WebSocket, Docker and CI integration complete | 111 backend + 7 frontend tests passing
 
 ---
 
@@ -16,8 +16,8 @@
 
 ### EPIC 2 — Frontend Shell
 - [x] `FE-001` Frontend pages (Dashboard, Shelves, Inventory, Alerts, Settings) with layouts — **All 5 pages + components built** ✅
-- [x] `FE-002` Auth pages (Login, Register) + protected route wrapper — **JWT mock auth working** ✅
-- [ ] `FE-003` Dashboard with real data integration (Phase 6+)
+- [x] `FE-002` Auth page, session verification, and protected route wrapper — **Real backend JWT auth working** ✅
+- [x] `FE-003` Dashboard with real data integration — **Metrics, zones, events, inventory and WebSocket cache updates working** ✅
 
 ### EPIC 3 — Computer Vision Prototype
 - [x] `CV-001` Video ingestion + frame sampler — **Webcam, file, RTSP; configurable FPS** ✅
@@ -47,9 +47,11 @@
   - ✅ Created `/api/v1/alerts` endpoint (auto-generated from inventory + camera status)
   - ✅ Created `/api/v1/events` endpoint (activity feed / reconciliation events)
   - ✅ Created `/api/v1/dashboard` endpoint (KPI metrics aggregation)
-  - ✅ Implemented frontend API client (`frontend/src/lib/api-client.ts`)
-  - ✅ Wired store to fetch real data from backend (with mock fallback)
-  - ✅ Environment config for API URL (`VITE_API_URL`)
+  - ✅ Implemented authenticated frontend API client (`frontend/src/lib/api`)
+  - ✅ Removed production mock fallbacks; TanStack Query reads persistent backend data
+  - ✅ Environment config for API and WebSocket URLs (`VITE_API_URL`, `VITE_WS_URL`)
+  - ✅ Integrated dashboard, inventory history, alert mutations, cameras, and Agent Activity
+  - ✅ Redis events are forwarded from the listener thread onto the application event loop
   - ✅ All 29 backend routes verified and tested
   - 🔄 Next: E2E data flow testing (seed DB → CV pipeline → alerts/events)
 
@@ -76,8 +78,10 @@
 - [x] `API-MAP-001` Centralize event/alert wire aliases (`from`, `to`, `minAgo`) and stop fabricating event quantities
 - [x] `DB-MIG-001` Add Alembic baseline and normalized-email uniqueness migration
 - [x] `TEST-SEC-001` Add isolated security, authorization, WebSocket, rate-limit, inventory-contract, alias, and migration regression tests
-- [x] `TEST-EXEC-001` Full backend verification — **106 passed** with Python 3.12
-- [ ] `FE-AUTH-001` Patch frontend token storage/401 handling — the documented `frontend/` source is not present in this checkout
+- [x] `TEST-EXEC-001` Full backend verification — **111 passed** with Python 3.12
+- [x] `FE-AUTH-001` Frontend session token storage, 401 handling, verification, and protected navigation
+- [x] `FE-TEST-001` TypeScript strict check, ESLint, 7 Vitest tests, production build and HTTP smoke test
+- [x] `DEPLOY-001` Frontend/backend Docker stages, development and production Compose, and GitHub Actions CI
 
 ---
 
@@ -86,18 +90,17 @@
 
 - Phase 3 CV: YOLOv8m (medium model for speed/accuracy), ByteTrack no re-ID (lightweight), center-based ROI assignment (point-in-polygon)
 - Phase 4 reconciliation: Uses Redis for observation windows (transient, TTL=600s), reconciles via consensus (≥2 frames), state machine enforced in service layer
-- Dev Auth: Using localStorage + mock JWT for Phase 2. Phase 5 replaces with real backend JWT
+- Frontend auth: backend JWTs are stored in sessionStorage, verified on startup, and cleared centrally on `401`
 - Camera heartbeat: Background thread polls every 5s, marks offline after timeout, triggers CAMERA_OFFLINE state on all inventory
-- Phase 6 Frontend: Replaced Next.js with Vite+React19+TanStack (pixel-perfect-render repo). API client with fallback to mock data. Store fetches on mount, preserves animations.
+- Phase 6 Frontend: React 19 + TanStack Start console now uses TanStack Query, persistent APIs, authenticated mutations, and WebSocket invalidation without production mock fallbacks.
 - Phase 7 AI Agents: Deterministic analysis (no hallucination risk) for insight & anomaly. LangGraph skeleton ready for Phase 8+. Agent runs logged for FYP evaluation.
 - Phase 8 Docs: Comprehensive README, API reference, deployment guide. Security checklist and troubleshooting included.
 
 ## Known Issues / Gotchas
 *(append anything a future session needs to know to avoid re-discovering it)*
 
-- The current checkout has no tracked `frontend/` directory although older documentation described one.
+- Docker is unavailable in the current execution environment, so Compose image startup was not verified; the production Node bundle itself passed an HTTP 200 smoke test.
 - Historical Git revisions contain credential-like values. Rotate affected credentials before any coordinated history rewrite.
-- Docker is unavailable in the current execution environment, so Docker Compose startup was not verified.
 
 ## Open Questions Still Pending From User
 - Camera footage source (real shelf vs. public dataset vs. self-recorded mock) — not yet answered
