@@ -13,13 +13,16 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.camera import Camera
+from app.models.zone import ShelfZone
+from app.services.outbox import enqueue
 from app.models.inventory import Inventory, InventoryStatus
 from app.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 # Redis client for heartbeat tracking
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True,
+    socket_connect_timeout=1, socket_timeout=1)
 
 # Heartbeat prefix for Redis keys
 HEARTBEAT_KEY_PREFIX = "camera:heartbeat:"
@@ -108,7 +111,8 @@ class CameraHeartbeatService:
         try:
             # Find all inventory records that depend on this camera
             # (via zones that this camera monitors)
-            inventory_records = db.query(Inventory).all()  # Simplified for MVP
+            inventory_records = db.query(Inventory).join(ShelfZone).filter(
+                ShelfZone.camera_id == camera.id).all()
             
             updated_count = 0
             for inv in inventory_records:
@@ -124,6 +128,7 @@ class CameraHeartbeatService:
                     )
             
             if updated_count > 0:
+                enqueue(db, "camera_offline", {"camera_id": camera.id})
                 db.commit()
                 logger.warning(
                     f"Camera {camera.id} marked offline; {updated_count} inventory records updated"

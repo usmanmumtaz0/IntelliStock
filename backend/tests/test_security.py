@@ -119,7 +119,11 @@ def test_missing_and_invalid_tokens_are_rejected(client: TestClient):
 def test_expired_and_tampered_tokens_are_rejected(client: TestClient, users):
     expired = _token(users["admin"], expires=timedelta(seconds=-1))
     valid = _token(users["admin"])
-    tampered = valid[:-1] + ("A" if valid[-1] != "A" else "B")
+    header, payload, signature = valid.split(".")
+    # Mutate significant signature bits, not optional base64 padding bits.
+    # Changing only the final character can decode to the original signature.
+    tampered_signature = ("A" if signature[0] != "A" else "B") + signature[1:]
+    tampered = f"{header}.{payload}.{tampered_signature}"
     assert client.get(
         "/api/v1/dashboard/metrics", headers={"Authorization": f"Bearer {expired}"}
     ).status_code == 401

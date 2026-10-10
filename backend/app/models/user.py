@@ -29,6 +29,7 @@ class User(BaseModel):
     hashed_password = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.STAFF, nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    signup_pending = Column(Boolean, default=False, server_default="false", nullable=False)
 
     def __repr__(self):
         return f"<User {self.username}>"

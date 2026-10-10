@@ -37,7 +37,7 @@ function AgentActivity() {
     <>
       <PageHeader
         title="Agent activity"
-        description="Auditable execution history for deterministic insights, anomaly checks and notifications."
+        description="Execution history for insights, notifications and read-only chat. Private chat content is never shown here."
         actions={<Tag tone="primary">Read-only</Tag>}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

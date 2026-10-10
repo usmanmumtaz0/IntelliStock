@@ -104,7 +104,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         return None
 
     user = UserRepository(db).get_by_email(normalize_email(email))
-    if user is None or not verify_password(password, user.hashed_password) or not user.is_active:
+    if user is None or not verify_password(password, user.hashed_password) or not user.is_active or user.signup_pending:
         return None
 
     if pwd_context.needs_update(user.hashed_password):
@@ -128,7 +128,7 @@ def get_user_for_token(db: Session, token: str) -> Optional[User]:
     if token_data is None:
         return None
     user = UserRepository(db).get_by_id(token_data.user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.signup_pending:
         return None
     return user
 

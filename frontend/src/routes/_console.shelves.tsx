@@ -19,6 +19,7 @@ import {
 } from "@/components/app/primitives";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ShelfConfiguration } from "@/components/app/shelf-configuration";
 
 export const Route = createFileRoute("/_console/shelves")({
   head: () => ({ meta: [{ title: "Shelves & Cameras — IntelliStock" }] }),
@@ -71,7 +72,10 @@ function CameraPreview({
           <span className="font-mono text-[11px] text-critical">CAMERA DISABLED</span>
         </div>
       )}
-      <span className="absolute bottom-2 right-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+      <span className="absolute bottom-2 left-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        Illustrative layout · not live video or calibrated ROI
+      </span>
+      <span className="absolute top-2 right-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
         {camera.id.slice(0, 8)}
       </span>
     </div>
@@ -216,6 +220,14 @@ function Shelves() {
                 <SheetTitle>{selected.name}</SheetTitle>
               </SheetHeader>
               <div className="space-y-5 px-4 pb-6">
+                {canWrite && (
+                  <ShelfConfiguration
+                    key={selected.id}
+                    camera={selected}
+                    zones={cameraZones(selected.id)}
+                    onCameraSaved={setSelected}
+                  />
+                )}
                 <CameraPreview
                   camera={selected}
                   zones={cameraZones(selected.id).map((zone) => zone.name)}

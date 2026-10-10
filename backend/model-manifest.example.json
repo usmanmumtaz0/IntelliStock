@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "model_version": "REPLACE-WITH-REVIEWED-TRAINING-RUN",
+  "sha256": "REPLACE-WITH-64-LOWERCASE-HEX-CHARACTERS",
+  "task": "detect",
+  "classes": [
+    {"class_id": 0, "label": "EXACT-MODEL-LABEL", "sku": "YOUR-EXISTING-SKU"}
+  ]
+}

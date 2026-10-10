@@ -1,11 +1,14 @@
 """Validated application configuration loaded exclusively from the environment."""
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ENV_FILES = (BACKEND_DIR.parent / ".env", BACKEND_DIR / ".env")
 
 
 class Settings(BaseSettings):
@@ -41,9 +44,36 @@ class Settings(BaseSettings):
 
     DATABASE_POOL_SIZE: int = Field(default=10, ge=1, le=100)
     DATABASE_MAX_OVERFLOW: int = Field(default=20, ge=0, le=200)
+    ALERT_COOLDOWN_SECONDS: int = Field(default=300, ge=0)
+    ALERT_ESCALATION_SECONDS: int = Field(default=900, ge=60)
+    CV_MODEL_PATH: str = ""
+    CV_MODEL_MANIFEST: str = ""
+    CV_DEVICE: str = "cpu"
+
+    # Credentials never enable outbound delivery by themselves.
+    # AI routing defaults to local; SMTP requires explicit opt-in; SMS is reserved.
+    OPENAI_API_KEY: SecretStr | None = None
+    OPENROUTER_API_KEY: SecretStr | None = None
+    CHAT_PROVIDER: Literal["local", "openai", "openrouter"] = "local"
+    CHAT_MODEL: str = Field(default="", max_length=100)
+    CHAT_TIMEOUT_SECONDS: float = Field(default=15, gt=0, le=30)
+    CHAT_MAX_TURNS: int = Field(default=100, ge=1, le=200)
+    CHAT_REQUESTS_PER_MINUTE: int = Field(default=10, ge=1, le=60)
+    SMTP_PASSWORD: SecretStr | None = None
+    NOTIFICATIONS_ENABLED: bool = False
+    NOTIFICATION_EMAIL_TO: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535)
+    SMTP_USERNAME: str = ""
+    SMTP_FROM: str = ""
+    SMTP_SECURITY: Literal["starttls", "ssl"] = "starttls"
+    SMTP_TIMEOUT_SECONDS: float = Field(default=10, gt=0, le=30)
+    NOTIFICATION_MAX_ATTEMPTS: int = Field(default=5, ge=1, le=10)
+    TWILIO_AUTH_TOKEN: SecretStr | None = None
 
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'),
+        env_file=ENV_FILES,
+        env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
     )

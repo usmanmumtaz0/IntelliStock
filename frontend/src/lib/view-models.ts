@@ -4,10 +4,18 @@ export type ReconStatus = "verified" | "pending" | "flagged";
 export type SeverityTone = "critical" | "warning" | "info";
 export type { ZoneHealth };
 
+/** Observation age is separate from modification time (e.g. manual corrections). */
+export function inventoryIsStale(item: InventoryDto, now = Date.now()): boolean {
+  if (!item.last_observation_time) return true;
+  const raw = item.last_observation_time;
+  const time = Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}Z`);
+  return !Number.isFinite(time) || now - time > 60_000;
+}
+
 export function inventoryTrustState(item: InventoryDto): ReconStatus {
   if (item.pending_quantity !== null && item.pending_quantity !== item.current_quantity)
     return "pending";
-  return item.verified ? "verified" : "flagged";
+  return item.verified && !inventoryIsStale(item) ? "verified" : "flagged";
 }
 
 export function confidencePercent(value: number | null | undefined): number {

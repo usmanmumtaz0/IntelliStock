@@ -56,6 +56,8 @@ class Alert(BaseModel):
     alert_type = Column(SQLEnum(AlertType), nullable=False, index=True)
     severity = Column(SQLEnum(AlertSeverity), nullable=False, index=True, default=AlertSeverity.MEDIUM)
     status = Column(SQLEnum(AlertStatus), nullable=False, index=True, default=AlertStatus.OPEN)
+    active_key = Column(String(160), nullable=True, unique=True)
+    snoozed_until = Column(DateTime, nullable=True)
 
     # Content
     title = Column(String(255), nullable=False)

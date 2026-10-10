@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, Panel, Tag } from "@/components/app/primitives";
+import { ProductManagement } from "@/components/app/product-management";
+import { UserManagement } from "@/components/app/user-management";
+import { NotificationDeliveries } from "@/components/app/notification-deliveries";
 
 export const Route = createFileRoute("/_console/settings")({
   head: () => ({
@@ -33,6 +36,9 @@ function SettingsPage() {
         description="Account information is managed by the authenticated IntelliStock backend."
       />
       <div className="grid gap-4 xl:grid-cols-2">
+        <ProductManagement />
+        <UserManagement />
+        <NotificationDeliveries />
         <Panel title="Profile">
           <div className="flex items-center gap-3">
             <div className="grid size-12 place-items-center rounded-full bg-secondary text-sm font-semibold">

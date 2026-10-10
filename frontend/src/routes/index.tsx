@@ -4,6 +4,8 @@ import { CheckCircle2, Clock, Eye, ShieldCheck, Activity } from "lucide-react";
 import { Logo } from "@/components/app/app-shell";
 import { LiveIndicator, CountDisplay } from "@/components/app/primitives";
 import { useAuth } from "@/lib/auth";
+import { api, ApiError } from "@/lib/api";
+import { PasswordInput } from "@/components/app/password-input";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -21,6 +23,8 @@ export const Route = createFileRoute("/")({
 function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signup, setSignup] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const { login, user, ready } = useAuth();
   const navigate = useNavigate();
 
@@ -31,13 +35,36 @@ function AuthPage() {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     setSubmitting(true);
-    const form = new FormData(event.currentTarget);
+    const element = event.currentTarget;
+    const form = new FormData(element);
     try {
+      if (signup) {
+        const password = String(form.get("password") ?? "");
+        if (password !== String(form.get("confirmation") ?? "")) {
+          throw new Error("Passwords do not match");
+        }
+        const result = await api.signup(
+          String(form.get("email") ?? ""),
+          String(form.get("username") ?? ""),
+          password,
+        );
+        element.reset();
+        setSignup(false);
+        setNotice(result.message);
+        return;
+      }
       await login(String(form.get("email") ?? ""), String(form.get("password") ?? ""));
       await navigate({ to: "/dashboard", replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to sign in");
+      setError(
+        cause instanceof ApiError && cause.status === 422
+          ? "Check your email, username (3–64 letters, numbers, dots, underscores or hyphens) and password (12–128 characters)."
+          : cause instanceof Error
+            ? cause.message
+            : "Unable to submit request",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -105,11 +132,34 @@ function AuthPage() {
           <div className="mb-8 lg:hidden">
             <Logo />
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">Welcome back</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {signup ? "Request an account" : "Welcome back"}
+          </h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Sign in to your store operations console.
+            {signup
+              ? "New accounts receive Staff access only after administrator approval."
+              : "Sign in to your store operations console."}
           </p>
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          {notice && (
+            <p role="status" className="mt-4 rounded-md border p-3 text-sm">
+              {notice}
+            </p>
+          )}
+          <form key={signup ? "signup" : "login"} onSubmit={submit} className="mt-6 space-y-4">
+            {signup && (
+              <label className="block space-y-1.5 text-[12px] font-medium">
+                <span>Username</span>
+                <input
+                  name="username"
+                  autoComplete="username"
+                  required
+                  minLength={3}
+                  maxLength={64}
+                  pattern="[A-Za-z0-9_.\-]+"
+                  className={field}
+                />
+              </label>
+            )}
             <label className="block space-y-1.5 text-[12px] font-medium">
               <span>Work email</span>
               <input
@@ -121,17 +171,27 @@ function AuthPage() {
                 placeholder="you@store.com"
               />
             </label>
-            <label className="block space-y-1.5 text-[12px] font-medium">
-              <span>Password</span>
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
+            <PasswordInput
+              label="Password"
+              name="password"
+              autoComplete={signup ? "new-password" : "current-password"}
+              minLength={signup ? 12 : 1}
+              maxLength={signup ? 128 : 1024}
+              required
+              className={field}
+              placeholder="••••••••"
+            />
+            {signup && (
+              <PasswordInput
+                label="Confirm password (12–128 characters)"
+                name="confirmation"
+                autoComplete="new-password"
                 required
+                minLength={12}
+                maxLength={128}
                 className={field}
-                placeholder="••••••••"
               />
-            </label>
+            )}
             {error && (
               <p
                 role="alert"
@@ -145,11 +205,22 @@ function AuthPage() {
               disabled={submitting}
               className="h-10 w-full rounded-md bg-primary text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {submitting ? "Signing in…" : "Sign in"}
+              {submitting ? "Please wait…" : signup ? "Request Staff access" : "Sign in"}
             </button>
           </form>
           <p className="mt-6 text-center text-[12px] text-muted-foreground">
-            Accounts are provisioned by an IntelliStock administrator.
+            <button
+              type="button"
+              disabled={submitting}
+              className="text-primary hover:underline"
+              onClick={() => {
+                setSignup(!signup);
+                setError(null);
+                setNotice(null);
+              }}
+            >
+              {signup ? "Already have an approved account? Sign in" : "New user? Sign up"}
+            </button>
           </p>
         </div>
       </div>

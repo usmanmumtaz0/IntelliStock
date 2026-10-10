@@ -2,6 +2,7 @@
 WebSocket endpoint for real-time inventory updates.
 """
 import logging
+import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -31,7 +32,13 @@ async def websocket_inventory_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
+            if not await asyncio.to_thread(validate_websocket_token, token):
+                await websocket.close(code=4401)
+                break
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=15)
+            except asyncio.TimeoutError:
+                continue
             if data == "ping":
                 await websocket.send_text("pong")
                 logger.debug("WebSocket ping/pong")
@@ -41,17 +48,8 @@ async def websocket_inventory_endpoint(websocket: WebSocket):
     except Exception as exc:
         manager.disconnect(websocket)
         logger.error(f"WebSocket error: {exc}")
+    finally:
+        manager.disconnect(websocket)
 
 
-@router.on_event("startup")
-async def startup_event():
-    """Initialize WebSocket manager on app startup."""
-    manager.start_redis_listener()
-    logger.info("WebSocket manager initialized")
-
-
-@router.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup WebSocket manager on app shutdown."""
-    manager.stop_redis_listener()
-    logger.info("WebSocket manager cleaned up")
+# Listener startup/shutdown is owned by app.main.lifespan.

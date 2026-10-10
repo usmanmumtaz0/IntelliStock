@@ -12,8 +12,13 @@ from app.models.alert import Alert, AlertType, AlertSeverity, AlertStatus
 from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.inventory_history import InventoryHistory
+from app.services.outbox import alert_changed
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidAlertTransition(ValueError):
+    """The requested action would reopen a closed alert."""
 
 
 class AlertService:
@@ -21,6 +26,13 @@ class AlertService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def _mutable_alert(self, alert_id, target):
+        alert = self.db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
+        if (alert and alert.status in (AlertStatus.RESOLVED, AlertStatus.DISMISSED, AlertStatus.EXPIRED)
+                and alert.status != target):
+            raise InvalidAlertTransition("Closed alerts cannot be reopened")
+        return alert
 
     # Alert Creation Methods
     def create_alert(
@@ -59,6 +71,7 @@ class AlertService:
             related_event_id=related_event_id,
         )
         self.db.add(alert)
+        alert_changed(self.db, alert)
         self.db.commit()
         logger.info(f"Created alert: {alert_type.value} for {zone_id}/{product_id}")
         return alert
@@ -169,43 +182,65 @@ class AlertService:
     # Alert Management
     def acknowledge_alert(self, alert_id: str, user_id: str) -> Alert:
         """Mark alert as acknowledged by user."""
-        alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
+        alert = self._mutable_alert(alert_id, AlertStatus.ACKNOWLEDGED)
         if alert:
             alert.status = AlertStatus.ACKNOWLEDGED
             alert.acknowledged_by_user = user_id
             alert.acknowledged_at = datetime.utcnow()
+            alert.snoozed_until = None
+            alert_changed(self.db, alert)
             self.db.commit()
             logger.info(f"Acknowledged alert {alert_id}")
         return alert
 
     def resolve_alert(self, alert_id: str, user_id: str) -> Alert:
         """Mark alert as resolved."""
-        alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
+        alert = self._mutable_alert(alert_id, AlertStatus.RESOLVED)
         if alert:
             alert.status = AlertStatus.RESOLVED
             alert.resolved_by_user = user_id
             alert.resolved_at = datetime.utcnow()
+            alert.active_key = None
+            alert.snoozed_until = None
+            alert_changed(self.db, alert)
             self.db.commit()
             logger.info(f"Resolved alert {alert_id}")
         return alert
 
     def dismiss_alert(self, alert_id: str) -> Alert:
         """Dismiss alert (acknowledged but no action needed)."""
-        alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
+        alert = self._mutable_alert(alert_id, AlertStatus.DISMISSED)
         if alert:
             alert.status = AlertStatus.DISMISSED
+            alert.active_key = None
+            alert.snoozed_until = None
+            alert_changed(self.db, alert)
             self.db.commit()
             logger.info(f"Dismissed alert {alert_id}")
         return alert
 
     def escalate_alert(self, alert_id: str, new_severity: AlertSeverity) -> Alert:
         """Escalate alert to higher severity."""
-        alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
+        alert = self._mutable_alert(alert_id, AlertStatus.ESCALATED)
         if alert:
             alert.status = AlertStatus.ESCALATED
             alert.severity = new_severity
+            alert_changed(self.db, alert)
             self.db.commit()
             logger.info(f"Escalated alert {alert_id} to {new_severity.value}")
+        return alert
+
+    def snooze_alert(self, alert_id: str, user_id: str, minutes: int):
+        if minutes not in (30, 60, 240, 1440):
+            raise ValueError("Unsupported snooze duration")
+        alert = self.db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
+        if alert:
+            if alert.status in (AlertStatus.RESOLVED, AlertStatus.DISMISSED, AlertStatus.EXPIRED):
+                raise ValueError("Cannot snooze a closed alert")
+            alert.snoozed_until = datetime.utcnow() + timedelta(minutes=minutes)
+            alert.acknowledged_by_user = user_id
+            alert_changed(self.db, alert)
+            self.db.commit()
         return alert
 
     # Querying
@@ -266,12 +301,14 @@ class AlertService:
 
     def acknowledge_all(self, user_id: str) -> int:
         """Acknowledge every currently open alert and return the affected count."""
-        alerts = self.db.query(Alert).filter(Alert.status == AlertStatus.OPEN).all()
+        alerts = self.db.query(Alert).filter(Alert.status == AlertStatus.OPEN).with_for_update().all()
         acknowledged_at = datetime.utcnow()
         for alert in alerts:
             alert.status = AlertStatus.ACKNOWLEDGED
             alert.acknowledged_by_user = user_id
             alert.acknowledged_at = acknowledged_at
+            alert.snoozed_until = None
+            alert_changed(self.db, alert)
         self.db.commit()
         return len(alerts)
 

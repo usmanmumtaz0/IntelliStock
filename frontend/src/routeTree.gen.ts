@@ -13,8 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConsoleRouteImport } from './routes/_console'
 import { Route as ConsoleAgentActivityRouteImport } from './routes/_console.agent-activity'
 import { Route as ConsoleAlertsRouteImport } from './routes/_console.alerts'
+import { Route as ConsoleAssistantRouteImport } from './routes/_console.assistant'
 import { Route as ConsoleDashboardRouteImport } from './routes/_console.dashboard'
 import { Route as ConsoleInventoryRouteImport } from './routes/_console.inventory'
+import { Route as ConsoleReportsRouteImport } from './routes/_console.reports'
 import { Route as ConsoleSettingsRouteImport } from './routes/_console.settings'
 import { Route as ConsoleShelvesRouteImport } from './routes/_console.shelves'
 
@@ -37,6 +39,11 @@ const ConsoleAlertsRoute = ConsoleAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleAssistantRoute = ConsoleAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 const ConsoleDashboardRoute = ConsoleDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -45,6 +52,11 @@ const ConsoleDashboardRoute = ConsoleDashboardRouteImport.update({
 const ConsoleInventoryRoute = ConsoleInventoryRouteImport.update({
   id: '/inventory',
   path: '/inventory',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleReportsRoute = ConsoleReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => ConsoleRoute,
 } as any)
 const ConsoleSettingsRoute = ConsoleSettingsRouteImport.update({
@@ -62,8 +74,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agent-activity': typeof ConsoleAgentActivityRoute
   '/alerts': typeof ConsoleAlertsRoute
+  '/assistant': typeof ConsoleAssistantRoute
   '/dashboard': typeof ConsoleDashboardRoute
   '/inventory': typeof ConsoleInventoryRoute
+  '/reports': typeof ConsoleReportsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
 }
@@ -71,8 +85,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agent-activity': typeof ConsoleAgentActivityRoute
   '/alerts': typeof ConsoleAlertsRoute
+  '/assistant': typeof ConsoleAssistantRoute
   '/dashboard': typeof ConsoleDashboardRoute
   '/inventory': typeof ConsoleInventoryRoute
+  '/reports': typeof ConsoleReportsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
 }
@@ -82,8 +98,10 @@ export interface FileRoutesById {
   '/_console': typeof ConsoleRouteWithChildren
   '/_console/agent-activity': typeof ConsoleAgentActivityRoute
   '/_console/alerts': typeof ConsoleAlertsRoute
+  '/_console/assistant': typeof ConsoleAssistantRoute
   '/_console/dashboard': typeof ConsoleDashboardRoute
   '/_console/inventory': typeof ConsoleInventoryRoute
+  '/_console/reports': typeof ConsoleReportsRoute
   '/_console/settings': typeof ConsoleSettingsRoute
   '/_console/shelves': typeof ConsoleShelvesRoute
 }
@@ -93,8 +111,10 @@ export interface FileRouteTypes {
     | '/'
     | '/agent-activity'
     | '/alerts'
+    | '/assistant'
     | '/dashboard'
     | '/inventory'
+    | '/reports'
     | '/settings'
     | '/shelves'
   fileRoutesByTo: FileRoutesByTo
@@ -102,8 +122,10 @@ export interface FileRouteTypes {
     | '/'
     | '/agent-activity'
     | '/alerts'
+    | '/assistant'
     | '/dashboard'
     | '/inventory'
+    | '/reports'
     | '/settings'
     | '/shelves'
   id:
@@ -112,8 +134,10 @@ export interface FileRouteTypes {
     | '/_console'
     | '/_console/agent-activity'
     | '/_console/alerts'
+    | '/_console/assistant'
     | '/_console/dashboard'
     | '/_console/inventory'
+    | '/_console/reports'
     | '/_console/settings'
     | '/_console/shelves'
   fileRoutesById: FileRoutesById
@@ -153,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsoleAlertsRouteImport
       parentRoute: typeof ConsoleRoute
     }
+    '/_console/assistant': {
+      id: '/_console/assistant'
+      path: '/assistant'
+      fullPath: '/assistant'
+      preLoaderRoute: typeof ConsoleAssistantRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
     '/_console/dashboard': {
       id: '/_console/dashboard'
       path: '/dashboard'
@@ -165,6 +196,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/inventory'
       preLoaderRoute: typeof ConsoleInventoryRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/_console/reports': {
+      id: '/_console/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ConsoleReportsRouteImport
       parentRoute: typeof ConsoleRoute
     }
     '/_console/settings': {
@@ -187,8 +225,10 @@ declare module '@tanstack/react-router' {
 interface ConsoleRouteChildren {
   ConsoleAgentActivityRoute: typeof ConsoleAgentActivityRoute
   ConsoleAlertsRoute: typeof ConsoleAlertsRoute
+  ConsoleAssistantRoute: typeof ConsoleAssistantRoute
   ConsoleDashboardRoute: typeof ConsoleDashboardRoute
   ConsoleInventoryRoute: typeof ConsoleInventoryRoute
+  ConsoleReportsRoute: typeof ConsoleReportsRoute
   ConsoleSettingsRoute: typeof ConsoleSettingsRoute
   ConsoleShelvesRoute: typeof ConsoleShelvesRoute
 }
@@ -196,8 +236,10 @@ interface ConsoleRouteChildren {
 const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleAgentActivityRoute: ConsoleAgentActivityRoute,
   ConsoleAlertsRoute: ConsoleAlertsRoute,
+  ConsoleAssistantRoute: ConsoleAssistantRoute,
   ConsoleDashboardRoute: ConsoleDashboardRoute,
   ConsoleInventoryRoute: ConsoleInventoryRoute,
+  ConsoleReportsRoute: ConsoleReportsRoute,
   ConsoleSettingsRoute: ConsoleSettingsRoute,
   ConsoleShelvesRoute: ConsoleShelvesRoute,
 }

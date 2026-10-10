@@ -117,6 +117,7 @@ export interface AlertDto {
   created_at: string;
   acknowledged_at: string | null;
   resolved_at: string | null;
+  snoozed_until?: string | null;
   acknowledged_by_user: string | null;
   resolved_by_user: string | null;
 }

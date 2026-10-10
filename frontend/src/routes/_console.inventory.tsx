@@ -24,16 +24,20 @@ import {
   ConfidenceBadge,
 } from "@/components/app/primitives";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { InventoryCorrection } from "@/components/app/inventory-correction";
+import { inventoryIsStale } from "@/lib/view-models";
 
 type SearchParams = {
   q?: string | undefined;
   zone?: string | undefined;
   status?: ReconStatus | undefined;
   sku?: string | undefined;
+  record?: string | undefined;
 };
 
 export const Route = createFileRoute("/_console/inventory")({
   validateSearch: (search: Record<string, unknown>): SearchParams => ({
+    record: typeof search["record"] === "string" ? search["record"] : undefined,
     q: typeof search["q"] === "string" && search["q"] ? search["q"] : undefined,
     zone: typeof search["zone"] === "string" && search["zone"] ? search["zone"] : undefined,
     status:
@@ -73,7 +77,9 @@ function Inventory() {
     });
   }, [inventory.data, search.q, search.status]);
 
-  const selected = inventory.data?.find((item) => item.sku === search.sku);
+  const selected = inventory.data?.find((item) =>
+    search.record ? item.id === search.record : item.sku === search.sku,
+  );
   const counts = (inventory.data ?? []).reduce<Record<ReconStatus, number>>(
     (result, item) => {
       result[inventoryTrustState(item)] += 1;
@@ -179,8 +185,8 @@ function Inventory() {
                     key={item.id}
                     item={item}
                     zone={zoneName.get(item.zone_id) ?? item.zone_id}
-                    selected={search.sku === item.sku}
-                    onSelect={() => item.sku && setSearch({ sku: item.sku })}
+                    selected={selected?.id === item.id}
+                    onSelect={() => setSearch({ record: item.id, sku: undefined })}
                   />
                 ))}
               </tbody>
@@ -191,7 +197,7 @@ function Inventory() {
       <InventoryDetails
         item={selected}
         zone={selected ? (zoneName.get(selected.zone_id) ?? selected.zone_id) : ""}
-        onClose={() => setSearch({ sku: undefined })}
+        onClose={() => setSearch({ sku: undefined, record: undefined })}
       />
     </>
   );
@@ -249,6 +255,11 @@ function InventoryRow({
       </td>
       <td className="px-4 py-2 text-[12px] text-muted-foreground">
         {ago(minutesAgo(item.updated_at))}
+        {inventoryIsStale(item) && (
+          <div>
+            <Tag tone="warning">Stale observation</Tag>
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -283,7 +294,7 @@ function InventoryDetails({
             <div className="space-y-5 px-4 pb-6">
               <div className="flex items-end gap-4">
                 <div>
-                  <p className="mb-1 text-[11px] text-muted-foreground">Verified quantity</p>
+                  <p className="mb-1 text-[11px] text-muted-foreground">Committed quantity</p>
                   <CountDisplay
                     count={item.current_quantity}
                     observed={item.pending_quantity}
@@ -292,6 +303,7 @@ function InventoryDetails({
                 </div>
                 <ReconBadge status={inventoryTrustState(item)} />
               </div>
+              <InventoryCorrection key={item.id} item={item} />
               <div className="rounded-md border bg-surface-2 p-3">
                 <div className="mb-2 flex justify-between text-[11px] text-muted-foreground">
                   <span>Committed history</span>
@@ -318,6 +330,12 @@ function InventoryDetails({
                         </span>
                       </p>
                       <p className="text-[11px] text-muted-foreground">
+                        {record.reason && (
+                          <span className="block">
+                            {record.reason} · actor{" "}
+                            {record.actor_user_id ?? record.actor_system ?? record.source_system}
+                          </span>
+                        )}
                         {ago(minutesAgo(record.created_at))} · confidence{" "}
                         {confidencePercent(record.confidence)}%
                       </p>
@@ -325,6 +343,11 @@ function InventoryDetails({
                   ))}
                 </ol>
                 {history.isLoading && <SkeletonRow />}
+                {history.error && (
+                  <p role="alert" className="text-xs text-critical">
+                    {history.error.message}
+                  </p>
+                )}
               </div>
             </div>
           </>

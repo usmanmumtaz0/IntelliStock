@@ -1,0 +1,9 @@
+{
+  "zones": [{
+    "zone_id": "A-1",
+    "polygon": [[0.05, 0.1], [0.95, 0.1], [0.95, 0.9], [0.05, 0.9]],
+    "class_ids": [0],
+    "allow_empty_class_ids": [],
+    "confidence": 0.6
+  }]
+}

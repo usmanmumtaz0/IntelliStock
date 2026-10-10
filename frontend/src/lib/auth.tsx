@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, clearAccessToken, getAccessToken, setAccessToken, type AuthUser } from "./api";
 
 interface AuthContextValue {
@@ -21,6 +22,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -29,7 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAccessToken();
     setToken(null);
     setUser(null);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!token) return;
+    const timer = window.setInterval(() => {
+      void api
+        .verify()
+        .then((verified) =>
+          setUser({
+            userId: verified.user_id,
+            username: verified.username,
+            email: verified.email,
+            role: verified.role,
+          }),
+        )
+        .catch(() => {
+          // The central 401 handler clears revoked sessions; transient failures do not.
+        });
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [token]);
 
   useEffect(() => {
     const existingToken = getAccessToken();

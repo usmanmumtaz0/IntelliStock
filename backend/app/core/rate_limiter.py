@@ -136,6 +136,17 @@ async def check_rate_limit(request: Request) -> bool:
     return True
 
 
+def enforce_signup_rate_limit(request: Request, email: str) -> None:
+    """Bound public password hashing/account creation across workers via Redis."""
+    identifiers = (f"signup:ip:{_digest(get_client_identifier(request))}",
+                   f"signup:email:{_digest(email)}")
+    decisions = [shared_rate_limiter.check(identifier, 5, 3600) for identifier in identifiers]
+    blocked = [decision for decision in decisions if not decision.allowed]
+    if blocked:
+        raise HTTPException(429, "Too many signup attempts. Please try again later.",
+                            headers={"Retry-After": str(max(item.retry_after for item in blocked))})
+
+
 def get_rate_limit_status(identifier: str) -> dict:
     current = len(rate_limiter.requests.get(identifier, []))
     limit = settings.RATE_LIMIT_DEFAULT_REQUESTS

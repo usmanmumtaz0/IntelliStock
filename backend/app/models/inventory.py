@@ -1,7 +1,7 @@
 """
 Inventory model for trusted state tracking.
 """
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 from enum import Enum as PyEnum
@@ -22,6 +22,7 @@ class Inventory(BaseModel):
     """Current inventory state per zone/product."""
 
     __tablename__ = "inventory"
+    __table_args__ = (Index("uq_inventory_zone_product", "zone_id", "product_id", unique=True),)
 
     zone_id = Column(String(36), ForeignKey("shelf_zones.id"), nullable=False, index=True)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=False, index=True)

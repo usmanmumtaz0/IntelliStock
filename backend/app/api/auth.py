@@ -5,7 +5,8 @@ import logging
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, ConfigDict, field_validator
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import (
@@ -13,10 +14,11 @@ from app.core.security import (
     create_access_token,
     get_current_user,
     normalize_email,
+    hash_password,
 )
-from app.core.rate_limiter import enforce_login_rate_limit
+from app.core.rate_limiter import enforce_login_rate_limit, enforce_signup_rate_limit
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -46,6 +48,34 @@ class LoginResponse(BaseModel):
     username: str
     email: str
     role: str
+
+
+class SignupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=255)
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: SecretStr = Field(min_length=12, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        return LoginRequest.validate_email(value)
+
+
+@router.post("/signup", status_code=202)
+def signup(payload: SignupRequest, request: Request, db: Session = Depends(get_db)):
+    enforce_signup_rate_limit(request, payload.email)
+    # The public request has no role/activation fields; no token is issued here.
+    account = User(email=payload.email, username=payload.username,
+                   hashed_password=hash_password(payload.password.get_secret_value()),
+                   role=UserRole.STAFF, is_active=False, signup_pending=True)
+    db.add(account)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Same response for existing identities; never reset their password/state.
+    return {"message": "If these details are available, your signup request is awaiting administrator approval. You cannot sign in until approved."}
 
 
 @router.post("/login", response_model=LoginResponse)

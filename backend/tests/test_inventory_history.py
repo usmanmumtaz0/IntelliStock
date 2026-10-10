@@ -475,9 +475,12 @@ class TestInventoryHistoryIntegration:
             (15, 12, InventoryChangeType.DETECTION),
         ]
         
-        for prev, new, change_type in changes:
+        # Give the fixture a defined chronology; Windows clock ticks can tie
+        # across these fast commits, for which timestamp ordering is undefined.
+        baseline = datetime.utcnow() - timedelta(minutes=1)
+        for index, (prev, new, change_type) in enumerate(changes):
             if change_type == InventoryChangeType.DETECTION:
-                service.record_detection(
+                record = service.record_detection(
                     zone_id=sample_data["zone"].id,
                     product_id=sample_data["product"].id,
                     previous_qty=prev,
@@ -486,12 +489,14 @@ class TestInventoryHistoryIntegration:
                     detection_id=f"detect-{prev}-{new}",
                 )
             elif change_type == InventoryChangeType.RESTOCK:
-                service.record_restock(
+                record = service.record_restock(
                     zone_id=sample_data["zone"].id,
                     product_id=sample_data["product"].id,
                     previous_qty=prev,
                     new_qty=new,
                 )
+            record.created_at = baseline + timedelta(seconds=index)
+            db.commit()
         
         # Verify history chain
         records, total = service.get_history_by_zone_product(

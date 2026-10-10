@@ -25,6 +25,23 @@ def _headers(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_snooze_permissions_and_contract(client, alert_contract_data):
+    data = alert_contract_data
+    path = f"/api/v1/alerts/{data['alert_ids'][0]}/snooze"
+    assert client.post(path, json={"minutes": 60}, headers=data["staff_headers"]).status_code == 403
+    assert client.post(path, json={"minutes": 2}, headers=data["manager_headers"]).status_code == 422
+    response = client.post(path, json={"minutes": 60}, headers=data["manager_headers"])
+    assert response.status_code == 200
+    with SessionLocal() as db:
+        assert db.get(Alert, data["alert_ids"][0]).snoozed_until is not None
+    listing = client.get(f"/api/v1/alerts?zone_id={data['zone_id']}", headers=data["manager_headers"]).json()
+    snoozed = next(item for item in listing["data"] if item["id"] == data["alert_ids"][0])
+    assert snoozed["snoozed_until"].endswith("+00:00")
+    base = f"/api/v1/alerts/{data['alert_ids'][0]}"
+    assert client.post(base + "/resolve", headers=data["manager_headers"]).status_code == 200
+    assert client.post(base + "/acknowledge", headers=data["manager_headers"]).status_code == 409
+
+
 @pytest.fixture
 def alert_contract_data():
     suffix = uuid4().hex[:10]

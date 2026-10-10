@@ -1,5 +1,6 @@
 services:
   postgres:
+    networks: [intellistock]
     image: postgres:16-alpine
     container_name: intellistock_postgres
     environment:
@@ -17,6 +18,7 @@ services:
       retries: 5
 
   redis:
+    networks: [intellistock]
     image: redis:7-alpine
     container_name: intellistock_redis
     ports:
@@ -35,6 +37,23 @@ services:
       dockerfile: Dockerfile
     container_name: intellistock_backend
     environment:
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-local}
+      CHAT_MODEL: ${CHAT_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      CHAT_TIMEOUT_SECONDS: ${CHAT_TIMEOUT_SECONDS:-15}
+      CHAT_MAX_TURNS: ${CHAT_MAX_TURNS:-100}
+      CHAT_REQUESTS_PER_MINUTE: ${CHAT_REQUESTS_PER_MINUTE:-10}
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
+      NOTIFICATION_EMAIL_TO: ${NOTIFICATION_EMAIL_TO:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
       REDIS_URL: redis://redis:6379/0
@@ -53,9 +72,47 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     networks:
       - intellistock
+
+  worker:
+    build: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    command: python -m app.workers.events
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [intellistock]
+    restart: unless-stopped
+
+  notifications:
+    build: ./backend
+    profiles: [notifications]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
+      NOTIFICATION_EMAIL_TO: ${NOTIFICATION_EMAIL_TO:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+    command: python -m app.workers.notifications
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [intellistock]
+    restart: unless-stopped
 
   frontend:
     build:

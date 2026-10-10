@@ -10,7 +10,9 @@ from typing import Optional, Tuple
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
-from app.events.publisher import publish_stock_updated
+from app.services.outbox import enqueue
+from app.models.zone import ShelfZone
+import math
 from app.models.event import EventType, InventoryEvent
 from app.models.inventory import Inventory, InventoryStatus
 from app.models.product import Product
@@ -60,6 +62,12 @@ class ReconciliationEngine:
         Returns:
             Tuple[accepted: bool, reason: str | None]
         """
+        if observed_quantity < 0 or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+            return False, "Invalid observation"
+        zone = self.db.get(ShelfZone, zone_id)
+        camera = self.db.get(Camera, camera_id)
+        if not zone or zone.camera_id != camera_id or not camera or not camera.is_active:
+            return False, "Invalid or inactive camera/zone mapping"
         # Step 1: Check confidence threshold
         if confidence < MIN_CONFIDENCE_THRESHOLD:
             logger.debug(
@@ -86,12 +94,18 @@ class ReconciliationEngine:
             )
             return False, f"Insufficient observations: {len(observations)}/{MIN_CONSECUTIVE_FRAMES}"
         
+        # Consecutive agreement prevents averaging a real count transition into
+        # a count that was never observed. Old window values must age out first.
+        if observations[0].quantity != observations[1].quantity:
+            return False, "Waiting for consecutive matching observations"
         # Step 4: Calculate consensus quantity
         consensus_qty = obs_window.get_quantity_consensus()
         avg_confidence = obs_window.get_average_confidence()
         
         if consensus_qty is None:
             return False, "Failed to calculate consensus"
+        if consensus_qty != observed_quantity:
+            return False, "Waiting for window consensus on latest quantity"
         
         # Step 5: Check variance tolerance (all observations within tolerance)
         qtys = [o.quantity for o in observations]
@@ -137,11 +151,13 @@ class ReconciliationEngine:
         """Update inventory record with reconciled state."""
         try:
             # Get or create inventory record
+            self.db.query(ShelfZone).filter_by(id=zone_id).with_for_update().first()
             inv = self.db.query(Inventory).filter(
                 (Inventory.zone_id == zone_id)
                 & (Inventory.product_id == product_id)
-            ).first()
+            ).with_for_update().first()
             
+            is_new = inv is None
             if not inv:
                 inv = Inventory(
                     zone_id=zone_id,
@@ -151,6 +167,7 @@ class ReconciliationEngine:
             
             # Update state
             prev_qty = inv.quantity_estimate if inv.quantity_estimate is not None else 0
+            prev_status = inv.status
             inv.quantity_estimate = quantity_estimate
             inv.confidence = confidence
             inv.observations_count = observations_count
@@ -159,7 +176,8 @@ class ReconciliationEngine:
             # Apply state machine logic
             self._apply_state_transition(inv)
             
-            quantity_changed = prev_qty != quantity_estimate
+            quantity_changed = prev_qty != quantity_estimate or is_new
+            state_changed = prev_status != inv.status
             event_id = str(uuid4())
             if quantity_changed:
                 # Persist the history and event in the inventory transaction.
@@ -193,16 +211,16 @@ class ReconciliationEngine:
                     )
                 )
 
+            if quantity_changed or state_changed:
+                enqueue(self.db, "stock_updated", {
+                    "camera_id": camera_id, "zone_id": zone_id, "product_id": product_id,
+                    "quantity": quantity_estimate, "confidence": confidence,
+                    "status": inv.status.value,
+                }, event_id=event_id)
             self.db.commit()
 
             if quantity_changed:
-                publish_stock_updated(
-                    camera_id=camera_id,
-                    zone_id=zone_id,
-                    product_id=product_id,
-                    quantity=quantity_estimate,
-                    confidence=confidence,
-                )
+                # Delivery is handled by the durable outbox worker after commit.
                 
                 status_val = inv.status.value if inv.status else "unknown"
                 logger.info(

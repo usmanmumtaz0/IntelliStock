@@ -32,6 +32,7 @@ export function useInventoryWebSocket(): ConnectionState {
         queryClient.invalidateQueries({ queryKey: queryKeys.alerts }),
         queryClient.invalidateQueries({ queryKey: queryKeys.alertStats }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cameras }),
+        queryClient.invalidateQueries({ queryKey: ["products"] }),
       ]);
     };
 
@@ -42,6 +43,7 @@ export function useInventoryWebSocket(): ConnectionState {
       socket.onopen = () => {
         attempts = 0;
         setState("live");
+        invalidateLiveData();
       };
       socket.onmessage = (event) => {
         if (event.data === "pong") return;
@@ -63,9 +65,12 @@ export function useInventoryWebSocket(): ConnectionState {
     };
 
     connect();
+    // Recover from missed pub/sub events even when the browser socket stays open.
+    const refreshTimer = window.setInterval(invalidateLiveData, 30_000);
     return () => {
       stopped = true;
       if (retryTimer) window.clearTimeout(retryTimer);
+      window.clearInterval(refreshTimer);
       socket?.close();
     };
   }, [token, queryClient]);

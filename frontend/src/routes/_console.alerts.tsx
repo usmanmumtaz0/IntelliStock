@@ -53,12 +53,20 @@ function Alerts() {
     ]);
   };
   const mutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "acknowledge" | "resolve" | "dismiss" }) =>
-      action === "acknowledge"
-        ? api.acknowledgeAlert(id)
-        : action === "resolve"
-          ? api.resolveAlert(id)
-          : api.dismissAlert(id),
+    mutationFn: ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: "acknowledge" | "resolve" | "dismiss" | "snooze";
+    }) =>
+      action === "snooze"
+        ? api.snoozeAlert(id)
+        : action === "acknowledge"
+          ? api.acknowledgeAlert(id)
+          : action === "resolve"
+            ? api.resolveAlert(id)
+            : api.dismissAlert(id),
     onSuccess: async (result) => {
       toast.success(result.message);
       await refresh();
@@ -187,7 +195,7 @@ function AlertCard({
   product: { name: string | null; sku: string | null } | undefined;
   canMutate: boolean;
   pending: boolean;
-  onAction: (action: "acknowledge" | "resolve" | "dismiss") => void;
+  onAction: (action: "acknowledge" | "resolve" | "dismiss" | "snooze") => void;
 }) {
   const tone = alertSeverityTone(alert.severity);
   const Icon = alertIcon(alert.alert_type);
@@ -222,6 +230,9 @@ function AlertCard({
           <p className="text-[13px] font-medium">{alert.title}</p>
           <Tag tone={severityTone(tone)}>{alert.severity}</Tag>
           <Tag>{alert.status}</Tag>
+          {alert.snoozed_until && new Date(alert.snoozed_until).getTime() > Date.now() && (
+            <Tag>Snoozed until {new Date(alert.snoozed_until).toLocaleTimeString()}</Tag>
+          )}
         </div>
         <p className="mt-1 text-[12px] text-muted-foreground">
           {alert.description ?? alert.recommendation ?? "No additional details"}
@@ -236,6 +247,15 @@ function AlertCard({
       </div>
       {canMutate && !closed && (
         <div className="flex shrink-0 gap-1">
+          <button
+            disabled={pending}
+            onClick={() => onAction("snooze")}
+            title="Snooze for one hour"
+            aria-label="Snooze for one hour"
+            className="grid size-8 place-items-center rounded-md border hover:text-primary"
+          >
+            <BellOff className="size-3.5" />
+          </button>
           {(alert.status === "OPEN" || alert.status === "ESCALATED") && (
             <button
               disabled={pending}

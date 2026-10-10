@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
+  MessageSquare,
   Cctv,
   Boxes,
   Bell,
@@ -40,7 +41,9 @@ const nav = [
   { to: "/shelves", label: "Shelves", icon: Cctv },
   { to: "/inventory", label: "Inventory", icon: Boxes },
   { to: "/alerts", label: "Alerts", icon: Bell },
+  { to: "/reports", label: "Reports", icon: Boxes },
   { to: "/agent-activity", label: "Agent Activity", icon: Activity },
+  { to: "/assistant", label: "Assistant", icon: MessageSquare },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

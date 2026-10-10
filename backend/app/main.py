@@ -8,6 +8,8 @@ from typing import Callable
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 
 from app.api import agents, alert_api, audit_api, auth, cameras, dashboard, events, health_api, inventory, inventory_history, products, zones
 from app.api.websocket import router as ws_router
@@ -16,8 +18,12 @@ from app.core.health import check_database, check_redis
 from app.core.rate_limiter import check_rate_limit
 from app.core.security import get_current_user, require_roles
 from app.database import init_db
-from app.events import event_consumer
+from app.websocket.manager import manager
 from app.services.camera_heartbeat import get_heartbeat_service
+from app.services.alert_service import InvalidAlertTransition
+from app.api import users
+from app.api import notifications, reports
+from app.api import chat
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -39,10 +45,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize database: {e}")
 
     try:
-        event_consumer.start()
-        logger.info("Event consumer started")
+        manager.start_redis_listener()
+        logger.info("WebSocket listener started; durable events run in the standalone worker")
     except Exception as e:
-        logger.error(f"Failed to start event consumer: {e}")
+        logger.error(f"Failed to start WebSocket listener: {e}")
 
     try:
         heartbeat_service = get_heartbeat_service()
@@ -61,10 +67,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to stop camera heartbeat service: {e}")
 
     try:
-        event_consumer.stop()
-        logger.info("Event consumer stopped")
+        manager.stop_redis_listener()
+        logger.info("WebSocket listener stopped")
     except Exception as e:
-        logger.error(f"Failed to stop event consumer: {e}")
+        logger.error(f"Failed to stop WebSocket listener: {e}")
 
     logger.info("Application shutdown")
 
@@ -75,6 +81,16 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.rstrip("/") == "/api/v1/auth/signup":
+        # Pydantic errors can include rejected passwords or entire request objects.
+        return JSONResponse(status_code=422, content={"detail": [
+            {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+            for error in exc.errors()]})
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.middleware("http")
@@ -90,6 +106,11 @@ async def rate_limit_middleware(request: Request, call_next: Callable):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers or {})
 
     return await call_next(request)
+
+
+@app.exception_handler(InvalidAlertTransition)
+async def invalid_alert_transition(_request: Request, exc: InvalidAlertTransition):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 app.add_middleware(
@@ -110,6 +131,10 @@ app.include_router(alert_api.router, dependencies=protected)
 app.include_router(audit_api.router, dependencies=[Depends(require_roles("admin"))])
 app.include_router(health_api.router, dependencies=[Depends(require_roles("admin"))])
 app.include_router(zones.router, dependencies=protected)
+app.include_router(users.router, dependencies=protected)
+app.include_router(notifications.router, dependencies=protected)
+app.include_router(reports.router, dependencies=protected)
+app.include_router(chat.router, dependencies=protected)
 app.include_router(events.router, dependencies=protected)
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(agents.router, dependencies=protected)

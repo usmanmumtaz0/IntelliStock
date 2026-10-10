@@ -27,3 +27,18 @@ def test_broadcast_fans_out_and_removes_failed_connections():
     assert connected.messages == [event]
     assert connected in manager.active_connections
     assert disconnected not in manager.active_connections
+
+
+def test_broadcast_tolerates_connection_set_changes():
+    manager = ConnectionManager()
+
+    class ChangingSocket(FakeSocket):
+        async def send_json(self, message):
+            manager.active_connections.clear()
+            await super().send_json(message)
+
+    changing = ChangingSocket()
+    other = FakeSocket()
+    manager.active_connections = {changing, other}
+    asyncio.run(manager.broadcast({"event_type": "resync"}))
+    assert changing.messages and other.messages

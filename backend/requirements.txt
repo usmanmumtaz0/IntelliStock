@@ -1,7 +1,8 @@
 # FastAPI
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-pydantic==2.5.0
+# Includes the Python 3.12.4+ ForwardRef fix needed by the pinned LangGraph stack.
+pydantic==2.7.4
 pydantic-settings==2.1.0
 
 # Database
@@ -22,6 +23,13 @@ python-multipart==0.0.6
 opencv-python==4.8.1.78
 ultralytics==8.0.207
 numpy==1.26.4
+lapx==0.5.11
+# Keep the reviewed YOLOv8 checkpoint loader on a matching Torch/TorchVision pair.
+# Load only trusted model files. Review this legacy CV stack before production.
+torch==2.2.2
+torchvision==0.17.2
+# Uvicorn 0.24 uses the legacy WebSocket server API.
+websockets==12.0
 
 # Testing
 pytest==7.4.3

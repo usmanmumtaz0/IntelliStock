@@ -34,7 +34,8 @@ def contract_data():
             low_stock_threshold=5,
             reorder_point=10,
         )
-        db.add_all([user, camera, product])
+        pending_product = Product(sku=f"PENDING-{suffix}", name="Pending product")
+        db.add_all([user, camera, product, pending_product])
         db.flush()
         zone = ShelfZone(
             camera_id=camera.id,
@@ -54,7 +55,7 @@ def contract_data():
         )
         pending = Inventory(
             zone_id=zone.id,
-            product_id=product.id,
+            product_id=pending_product.id,
             quantity_estimate=10,
             confidence=0.4,
             status=InventoryStatus.DETECTION_UNCERTAIN,
@@ -70,6 +71,7 @@ def contract_data():
             "camera": camera.id,
             "zone": zone.id,
             "product": product.id,
+            "pending_product": pending_product.id,
             "verified": verified.id,
             "pending": pending.id,
         }
@@ -84,12 +86,14 @@ def contract_data():
     yield ids
 
     get_observation_window(ids["camera"], ids["zone"], ids["product"]).clear()
+    get_observation_window(ids["camera"], ids["zone"], ids["pending_product"]).clear()
     with SessionLocal() as db:
         db.query(Inventory).filter(Inventory.id.in_([ids["verified"], ids["pending"]])).delete(
             synchronize_session=False
         )
         db.query(ShelfZone).filter(ShelfZone.id == ids["zone"]).delete(synchronize_session=False)
         db.query(Product).filter(Product.id == ids["product"]).delete(synchronize_session=False)
+        db.query(Product).filter(Product.id == ids["pending_product"]).delete(synchronize_session=False)
         db.query(Camera).filter(Camera.id == ids["camera"]).delete(synchronize_session=False)
         db.query(User).filter(User.id == ids["user"]).delete(synchronize_session=False)
         db.commit()
@@ -125,14 +129,14 @@ def test_empty_inventory_filter(client: TestClient, contract_data):
 
 def test_pending_observation_is_not_promoted_to_trusted_quantity(client: TestClient, contract_data):
     window = get_observation_window(
-        contract_data["camera"], contract_data["zone"], contract_data["product"]
+        contract_data["camera"], contract_data["zone"], contract_data["pending_product"]
     )
     window.clear()
     window.add_observation(
         Observation(
             camera_id=contract_data["camera"],
             zone_id=contract_data["zone"],
-            product_id=contract_data["product"],
+            product_id=contract_data["pending_product"],
             quantity=7,
             confidence=0.55,
         )

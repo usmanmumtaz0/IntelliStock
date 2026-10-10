@@ -1,0 +1,3 @@
+# Install from the repository root: python -m pip install -r requirements.txt
+# Canonical backend dependencies include CV detection, LangChain and LangGraph.
+-r backend/requirements.txt

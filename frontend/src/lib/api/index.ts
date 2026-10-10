@@ -24,6 +24,11 @@ export * from "./session";
 export * from "./types";
 
 export const api = {
+  signup: (email: string, username: string, password: string) =>
+    apiRequest<{ message: string }>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ email, username, password }),
+    }),
   login: (email: string, password: string) =>
     apiRequest<LoginResponse>("/auth/login", {
       method: "POST",
@@ -76,6 +81,11 @@ export const api = {
   dismissAlert: (id: string) =>
     apiRequest<AlertActionResponse>(`/alerts/${encodeURIComponent(id)}/dismiss`, {
       method: "POST",
+    }),
+  snoozeAlert: (id: string, minutes = 60) =>
+    apiRequest<AlertActionResponse>(`/alerts/${encodeURIComponent(id)}/snooze`, {
+      method: "POST",
+      body: JSON.stringify({ minutes }),
     }),
 
   cameras: () => apiRequest<CameraDto[]>("/cameras"),

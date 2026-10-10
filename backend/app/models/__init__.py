@@ -1,5 +1,8 @@
 # Models package
 from app.models.base import Base, BaseModel
+from app.models.delivery import OutboxEvent, ZoneProductMapping
+from app.models.notification import NotificationDelivery
+from app.models.chat import ChatConversation, ChatTurn
 from app.models.user import User, UserRole
 from app.models.camera import Camera
 from app.models.zone import ShelfZone

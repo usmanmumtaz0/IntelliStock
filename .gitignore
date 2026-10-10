@@ -2,8 +2,21 @@
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
 *.env
 *.secrets
+*.pt
+*.onnx
+camera.local.json
+model-manifest.local.json
+replay-zones.local.json
+/evaluation-local/
+/datasets/
+/models/
+/runs/
+/backend/runs/
+/cv/models/
 backend/.env
 frontend/.env
 
@@ -15,6 +28,8 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
+.venv-*/
 ENV/
 build/
 develop-eggs/

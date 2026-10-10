@@ -4,7 +4,8 @@ Inventory endpoints for querying state and reconciliation testing.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,6 +17,24 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.services.inventory_contract import serialize_inventory
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+
+
+class CorrectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    quantity: int = Field(ge=0, le=1000000, strict=True)
+    reason: str = Field(min_length=5, max_length=255)
+    expected_updated_at: datetime
+
+
+@router.post("/{inventory_id}/corrections", response_model=InventoryResponse)
+def correct_inventory(inventory_id: str, data: CorrectionRequest,
+                      db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+    from app.services.operations import correct_inventory as apply_correction
+    from app.services.observation_window import get_observation_window
+    inv = apply_correction(db, inventory_id, data, user)
+    db.commit()
+    get_observation_window(inv.zone.camera_id, inv.zone_id, inv.product_id).clear()
+    return serialize_inventory(inv)
 
 
 class ReconcileRequest(BaseModel):

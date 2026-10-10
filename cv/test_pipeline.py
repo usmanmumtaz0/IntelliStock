@@ -2,6 +2,7 @@
 Tests for CV Pipeline (Phases 1-4)
 """
 import pytest
+pytest.skip("Retired prototype tests; use backend/tests/test_durable_pipeline.py", allow_module_level=True)
 import numpy as np
 from uuid import uuid4
 

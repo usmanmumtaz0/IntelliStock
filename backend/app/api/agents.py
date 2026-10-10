@@ -112,7 +112,7 @@ def get_agent_stats(hours: int = Query(24, ge=1, le=720), db: Session = Depends(
     
     # Stats by agent type
     by_type = {}
-    for agent_type in ["supervisor", "insight", "anomaly", "notification"]:
+    for agent_type in ["supervisor", "insight", "anomaly", "notification", "chat"]:
         count = db.query(AgentRun).filter(
             AgentRun.created_at >= since,
             AgentRun.agent_type == agent_type

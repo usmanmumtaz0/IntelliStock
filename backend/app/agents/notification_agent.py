@@ -21,7 +21,7 @@ class NotificationChannel(str, Enum):
 class NotificationAgent:
     """
     Formats and routes notifications based on event severity.
-    Placeholder for Phase 7 actual delivery implementation.
+    Formats recommendations only. Durable SMTP delivery lives in the notification worker.
     """
     
     def notify(self, event_type: str, severity: str, context: dict) -> dict:
@@ -51,7 +51,7 @@ class NotificationAgent:
             "channels": channels,
             "message": message,
             "timestamp": datetime.utcnow().isoformat(),
-            "delivery_status": "queued",  # In Phase 7, actually send
+            "delivery_status": "planned",  # Formatting is not durable queueing or delivery.
             "confidence": 1.0,
         }
     

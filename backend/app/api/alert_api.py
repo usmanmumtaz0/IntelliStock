@@ -6,6 +6,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from sqlalchemy.orm import Session
 from typing import List
+from typing import Literal
+from pydantic import BaseModel
 
 from app.core.security import require_roles
 from app.database import get_db
@@ -21,6 +23,23 @@ from app.schemas.alert import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
+
+
+class SnoozeRequest(BaseModel):
+    minutes: Literal[30, 60, 240, 1440] = 60
+
+
+@router.post("/alerts/{alert_id}/snooze", response_model=AlertActionResponse)
+def snooze_alert(alert_id: str, body: SnoozeRequest,
+                 current_user: User = Depends(require_roles("admin", "manager")),
+                 db: Session = Depends(get_db)):
+    try:
+        alert = AlertService(db).snooze_alert(alert_id, current_user.id, body.minutes)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return AlertActionResponse(status="snoozed", alert_id=alert_id, message="Alert snoozed")
 
 
 def _paginated(records, total: int, limit: int, offset: int) -> AlertPaginationResponse:

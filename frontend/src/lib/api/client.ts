@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function apiResponse(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -36,6 +36,15 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
         : `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, detail);
   }
+  return response;
+}
+
+export async function apiTextRequest(path: string): Promise<string> {
+  return (await apiResponse(path)).text();
+}
+
+export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiResponse(path, init);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }

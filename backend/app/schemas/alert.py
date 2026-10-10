@@ -1,9 +1,9 @@
 """
 Pydantic schemas for alerts.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class AlertBase(BaseModel):
@@ -35,8 +35,15 @@ class AlertResponse(AlertBase):
     created_at: datetime
     acknowledged_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
+    snoozed_until: Optional[datetime] = None
     acknowledged_by_user: Optional[str] = None
     resolved_by_user: Optional[str] = None
+
+    @field_serializer("snoozed_until")
+    def serialize_snooze_time(self, value):
+        if value is None:
+            return None
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
 
     class Config:
         from_attributes = True
