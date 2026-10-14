@@ -13,7 +13,11 @@ model-manifest.local.json
 replay-zones.local.json
 /evaluation-local/
 /datasets/
-/models/
+# Publish only the explicitly approved model handoff files.
+/models/*
+!/models/best.pt
+!/models/model-manifest.draft.json
+!/models/README.md
 /runs/
 /backend/runs/
 /cv/models/

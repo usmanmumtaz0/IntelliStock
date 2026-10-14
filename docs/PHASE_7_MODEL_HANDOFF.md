@@ -2,6 +2,11 @@
 
 ## Supplied artifact status (2026-10-14)
 
+Publishing update: the owner subsequently approved including `models/best.pt`,
+`models/model-manifest.draft.json` and `models/README.md` in GitHub. The local-only
+descriptions below record the initial preparation. `.env` and runtime caches stay
+ignored; publishing the checkpoint does not approve live model activation.
+
 The user has now supplied `best.pt.zip`; its contents are a PyTorch checkpoint
 container rather than an outer ZIP. It was copied unchanged to ignored
 `models/best.pt`, preserving the original. SHA-256:

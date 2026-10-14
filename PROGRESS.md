@@ -7,6 +7,8 @@
 
 ### Supplied model preparation (Oct 14, 2026)
 
+- Owner subsequently requested publishing the model folder: explicitly allowlisted models/best.pt, model-manifest.draft.json and README.md for Git. Runtime caches, secrets and local activation manifests remain excluded. Earlier local-only notes describe the original preparation, not this publishing decision.
+
 - [x] Inspected Downloads/best.pt.zip: it is already a PyTorch checkpoint ZIP, not an outer archive. Copied unchanged to ignored models/best.pt; original preserved. SHA-256: 6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5.
 - [x] Metadata reports detection task, 25 exact Pakistani product labels and training Ultralytics 8.4.177. Current runtime Ultralytics 8.0.207/Torch 2.2.2 loads it and passes one blank-frame prediction plus three blank-frame YOLO/ByteTrack calls on CPU. This is not accuracy or real tracked-object acceptance; no dependency upgrades performed.
 - [x] Set ignored .env CV_MODEL_PATH to the local weights; retained CPU and blank CV_MODEL_MANIFEST to block activation. Created ignored models/model-manifest.draft.json with exact labels/hash and deliberately empty product codes. Verified incomplete mapping is rejected.
