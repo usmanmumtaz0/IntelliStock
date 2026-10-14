@@ -7,10 +7,15 @@ import { Panel } from "./primitives";
 import { ActionButton, Field, OperationError } from "./operation-fields";
 
 export function ProductManagement() {
-  const { user } = useAuth();
-  const canWrite = user?.role === "admin" || user?.role === "manager";
+  const { can } = useAuth();
+  const canWrite = can("products.update");
+  const canThresholds = can("thresholds.manage");
   const queryClient = useQueryClient();
-  const products = useQuery({ queryKey: ["products"], queryFn: operations.products });
+  const products = useQuery({
+    queryKey: ["products"],
+    queryFn: operations.products,
+    enabled: can("products.read"),
+  });
   const [editing, setEditing] = useState<ProductDto | "new" | null>(null);
   const save = useMutation({
     mutationFn: ({
@@ -31,7 +36,7 @@ export function ProductManagement() {
       title="Product catalog & stock thresholds"
       className="xl:col-span-2"
       action={
-        canWrite && (
+        can("products.create") && (
           <ActionButton
             onClick={() => {
               save.reset();
@@ -54,7 +59,7 @@ export function ProductManagement() {
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b">
-              <th className="p-2">SKU / product</th>
+              <th className="p-2">Product code / name</th>
               <th>Low stock at</th>
               <th>Reorder point</th>
               <th>
@@ -88,7 +93,7 @@ export function ProductManagement() {
           </tbody>
         </table>
       </div>
-      {editing && (
+      {editing && (editing === "new" ? can("products.create") : canWrite) && (
         <form
           key={typeof editing === "string" ? editing : editing.id}
           className="mt-4 grid gap-3 rounded-md border p-4 sm:grid-cols-2"
@@ -99,14 +104,18 @@ export function ProductManagement() {
               sku: String(data.get("sku")),
               name: String(data.get("name")),
               description: String(data.get("description")) || null,
-              low_stock_threshold: Number(data.get("threshold")),
-              reorder_point: Number(data.get("reorder")),
+              ...(canThresholds
+                ? {
+                    low_stock_threshold: Number(data.get("threshold")),
+                    reorder_point: Number(data.get("reorder")),
+                  }
+                : {}),
             };
             save.mutate(typeof editing === "string" ? { input } : { input, id: editing.id });
           }}
         >
           <Field
-            label="SKU (immutable)"
+            label="Product code (cannot be changed)"
             name="sku"
             required
             maxLength={64}
@@ -120,24 +129,28 @@ export function ProductManagement() {
             maxLength={255}
             defaultValue={editing === "new" ? "" : editing.name}
           />
-          <Field
-            label="Low-stock threshold (inclusive)"
-            name="threshold"
-            type="number"
-            min={0}
-            step={1}
-            required
-            defaultValue={editing === "new" ? 10 : editing.low_stock_threshold}
-          />
-          <Field
-            label="Reorder point (planning reference)"
-            name="reorder"
-            type="number"
-            min={0}
-            step={1}
-            required
-            defaultValue={editing === "new" ? 50 : editing.reorder_point}
-          />
+          {canThresholds && (
+            <Field
+              label="Low-stock threshold (inclusive)"
+              name="threshold"
+              type="number"
+              min={0}
+              step={1}
+              required
+              defaultValue={editing === "new" ? 10 : editing.low_stock_threshold}
+            />
+          )}
+          {canThresholds && (
+            <Field
+              label="Reorder point (planning reference)"
+              name="reorder"
+              type="number"
+              min={0}
+              step={1}
+              required
+              defaultValue={editing === "new" ? 50 : editing.reorder_point}
+            />
+          )}
           <Field
             label="Description"
             name="description"

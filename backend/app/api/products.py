@@ -8,7 +8,7 @@ from typing import List
 from app.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user
 from sqlalchemy.exc import IntegrityError
 from app.models.inventory import Inventory, InventoryStatus
 from app.models.inventory_history import InventoryHistory
@@ -17,6 +17,7 @@ from app.models.alert import Alert
 from app.models.event import InventoryEvent
 from app.services.operations import audit, stock_state, stock_changed
 from app.services.outbox import enqueue
+from app.core.permissions import authorize
 
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
@@ -41,10 +42,12 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
     "",
     response_model=ProductResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "manager"))],
+    dependencies=[Depends(get_current_user)],
 )
-def create_product(product: ProductCreate, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def create_product(product: ProductCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Create a new product."""
+    if product.model_fields_set & {"low_stock_threshold", "reorder_point"}:
+        authorize(user, "thresholds.manage")
     # Check for duplicate SKU
     existing = db.query(Product).filter(Product.sku == product.sku).first()
     if existing:
@@ -67,10 +70,12 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db), user=D
 @router.put(
     "/{product_id}",
     response_model=ProductResponse,
-    dependencies=[Depends(require_roles("admin", "manager"))],
+    dependencies=[Depends(get_current_user)],
 )
-def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Update a product."""
+    if product.model_fields_set & {"low_stock_threshold", "reorder_point"}:
+        authorize(user, "thresholds.manage")
     db_product = db.query(Product).filter(Product.id == product_id).with_for_update().first()
     if not db_product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
@@ -95,9 +100,9 @@ def update_product(product_id: str, product: ProductUpdate, db: Session = Depend
 @router.delete(
     "/{product_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_roles("admin"))],
+    dependencies=[Depends(get_current_user)],
 )
-def delete_product(product_id: str, db: Session = Depends(get_db), user=Depends(require_roles("admin"))):
+def delete_product(product_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Delete a product."""
     db_product = db.query(Product).filter(Product.id == product_id).first()
     if not db_product:

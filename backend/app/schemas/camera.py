@@ -1,7 +1,7 @@
 """
 Camera schemas for request/response validation.
 """
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_serializer
 from typing import Optional
 from datetime import datetime
 
@@ -48,6 +48,12 @@ class CameraResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("source_url")
+    def redact_source(self, value):
+        # Connection URLs can contain credentials in userinfo, path or query.
+        # Operators may replace a source, but no response echoes its secret value.
+        return None
 
     class Config:
         from_attributes = True

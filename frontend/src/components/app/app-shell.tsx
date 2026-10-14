@@ -15,11 +15,11 @@ import {
   LogOut,
   Moon,
   Sun,
-  ScanEye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
+import { canVisit } from "@/lib/permissions";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useInventoryWebSocket } from "@/hooks/use-inventory-websocket";
@@ -44,15 +44,20 @@ const nav = [
   { to: "/reports", label: "Reports", icon: Boxes },
   { to: "/agent-activity", label: "Agent Activity", icon: Activity },
   { to: "/assistant", label: "Assistant", icon: MessageSquare },
+  { to: "/requests", label: "Requests", icon: Boxes },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function Logo({ collapsed }: { collapsed?: boolean }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
-        <ScanEye className="size-4" />
-      </div>
+      <img
+        src="/intellistock-logo.svg"
+        alt={collapsed ? "IntelliStock" : ""}
+        width={28}
+        height={28}
+        className="size-7 shrink-0"
+      />
       {!collapsed && <span className="text-[14px] font-semibold tracking-tight">IntelliStock</span>}
     </div>
   );
@@ -89,36 +94,44 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-3 focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <aside
         id="desktop-sidebar"
         className={cn(
-          "hidden w-56 shrink-0 flex-col border-r bg-sidebar md:flex",
+          "hidden w-60 shrink-0 flex-col border-r bg-sidebar md:flex",
           !sidebarOpen && "md:hidden",
         )}
       >
-        <div className="flex h-14 items-center border-b px-3.5">
+        <div className="flex h-16 shrink-0 items-center border-b px-5">
           <Logo />
         </div>
-        <nav className="flex-1 space-y-0.5 p-2" aria-label="Main navigation">
-          {nav.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent"
-              activeProps={{
-                className: "bg-sidebar-accent !text-sidebar-accent-foreground font-medium",
-              }}
-            >
-              <item.icon className="size-4 shrink-0" />
-              <span className="flex-1">{item.label}</span>
-              {item.to === "/alerts" && unread.length > 0 && (
-                <span className="rounded bg-critical/15 px-1.5 font-mono text-[10px] text-critical">
-                  {unread.length}
-                </span>
-              )}
-            </Link>
-          ))}
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Main navigation">
+          {nav
+            .filter((item) => canVisit(user, item.to))
+            .map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+                activeProps={{
+                  className: "bg-primary/10 !text-primary font-semibold",
+                }}
+              >
+                <item.icon className="size-4 shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {item.to === "/alerts" && unread.length > 0 && (
+                  <span className="rounded bg-critical/15 px-1.5 font-mono text-[10px] text-critical">
+                    {unread.length}
+                  </span>
+                )}
+              </Link>
+            ))}
         </nav>
         <div className="border-t p-2">
           <div className="rounded-md border bg-surface px-2.5 py-2 text-[11px]">
@@ -143,7 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-surface px-3 sm:gap-3 sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -165,11 +178,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="md:hidden">
             <Logo collapsed />
           </div>
-          <div className="flex h-8 max-w-md flex-1 items-center gap-2 rounded-md border bg-surface px-2.5 text-muted-foreground">
+          <div className="flex h-10 min-w-0 max-w-md flex-1 items-center gap-2 rounded-lg border bg-background px-3 text-muted-foreground focus-within:border-primary">
             <Search className="size-3.5" />
             <input
-              placeholder="Search SKUs, products, zones…"
-              className="flex-1 bg-transparent text-[13px] text-foreground outline-none"
+              placeholder="Search products…"
+              aria-label="Search inventory by product name or product code; press Enter"
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
               onKeyDown={(event) => {
                 if (event.key === "Enter")
                   void navigate({ to: "/inventory", search: { q: event.currentTarget.value } });
@@ -229,7 +243,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
             <DropdownMenu>
-              <DropdownMenuTrigger className="ml-1 grid size-8 place-items-center rounded-full bg-secondary text-[11px] font-semibold">
+              <DropdownMenuTrigger
+                aria-label="Account menu"
+                className="ml-1 grid size-9 place-items-center rounded-full border bg-primary/10 text-xs font-semibold text-primary"
+              >
                 {initials}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -251,21 +268,31 @@ export function AppShell({ children }: { children: ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1440px] p-5 lg:p-6">{children}</div>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="console-content min-h-0 flex-1 overflow-y-auto"
+        >
+          <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">{children}</div>
         </main>
-        <nav className="flex border-t bg-sidebar md:hidden">
-          {nav.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="flex flex-1 justify-center py-2.5 text-muted-foreground"
-              activeProps={{ className: "!text-primary" }}
-              aria-label={item.label}
-            >
-              <item.icon className="size-4" />
-            </Link>
-          ))}
+        <nav
+          aria-label="Mobile navigation"
+          className="flex shrink-0 overflow-x-auto border-t bg-sidebar pb-[env(safe-area-inset-bottom)] md:hidden"
+        >
+          {nav
+            .filter((item) => canVisit(user, item.to))
+            .map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="flex min-w-20 flex-1 flex-col items-center justify-center gap-1 px-2 py-3 text-muted-foreground"
+                activeProps={{ className: "!text-primary" }}
+                aria-label={item.label}
+              >
+                <item.icon className="size-4" />
+                <span className="whitespace-nowrap text-[10px]">{item.label}</span>
+              </Link>
+            ))}
         </nav>
       </div>
 
@@ -277,18 +304,20 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SheetTitle>
           </SheetHeader>
           <nav className="space-y-0.5 p-2">
-            {nav.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileSidebarOpen(false)}
-                className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] hover:bg-sidebar-accent"
-                activeProps={{ className: "bg-sidebar-accent font-medium" }}
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </Link>
-            ))}
+            {nav
+              .filter((item) => canVisit(user, item.to))
+              .map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] hover:bg-sidebar-accent"
+                  activeProps={{ className: "bg-sidebar-accent font-medium" }}
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                </Link>
+              ))}
           </nav>
         </SheetContent>
       </Sheet>

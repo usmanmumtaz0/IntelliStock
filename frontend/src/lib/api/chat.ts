@@ -11,6 +11,11 @@ export interface ChatSource {
   id: string;
   label: string;
   href: string;
+  sku?: string;
+  shelf?: string;
+  recorded_at?: string;
+  updated_at?: string;
+  retrieved_at?: string;
 }
 export interface ChatTurn {
   id: string;

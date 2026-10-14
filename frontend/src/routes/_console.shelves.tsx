@@ -83,12 +83,12 @@ function CameraPreview({
 }
 
 function Shelves() {
-  const { user } = useAuth();
+  const { can } = useAuth();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<CameraDto | null>(null);
   const [adding, setAdding] = useState(false);
-  const canWrite = user?.role === "admin" || user?.role === "manager";
-  const canDelete = user?.role === "admin";
+  const canWrite = can("cameras.manage");
+  const canDelete = can("cameras.manage");
   const cameras = useQuery({
     queryKey: queryKeys.cameras,
     queryFn: api.cameras,
@@ -159,7 +159,7 @@ function Shelves() {
         </p>
       )}
       {cameras.isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="rounded-lg border p-4">
               <SkeletonRow />
@@ -168,14 +168,14 @@ function Shelves() {
           ))}
         </div>
       ) : cameras.data?.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {cameras.data.map((camera) => {
             const linkedZones = cameraZones(camera.id);
             return (
               <button
                 key={camera.id}
                 onClick={() => setSelected(camera)}
-                className="rounded-lg border bg-surface p-2.5 text-left hover:border-primary/40"
+                className="min-w-0 rounded-xl border bg-surface p-4 text-left shadow-sm transition-colors hover:border-primary/50"
               >
                 <CameraPreview camera={camera} zones={linkedZones.map((zone) => zone.name)} />
                 <div className="mt-2.5 flex items-start justify-between gap-2">
@@ -220,7 +220,7 @@ function Shelves() {
                 <SheetTitle>{selected.name}</SheetTitle>
               </SheetHeader>
               <div className="space-y-5 px-4 pb-6">
-                {canWrite && (
+                {can("shelves.manage") && (
                   <ShelfConfiguration
                     key={selected.id}
                     camera={selected}

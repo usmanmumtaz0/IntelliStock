@@ -5,9 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.core.security import require_roles, hash_password, normalize_email
+from app.core.security import get_current_user, hash_password, normalize_email
 from app.models.user import User, UserRole
 from app.services.operations import audit
+from app.core.permissions import authorize
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -38,12 +39,14 @@ class UserResponse(BaseModel):
 
 
 @router.get("", response_model=list[UserResponse])
-def list_users(db: Session = Depends(get_db), user=Depends(require_roles("admin"))):
+def list_users(db: Session = Depends(get_db), user=Depends(get_current_user)):
     return db.query(User).order_by(User.signup_pending.desc(), User.username).all()
 
 
 @router.post("", response_model=UserResponse, status_code=201)
-def create_user(data: UserCreate, db: Session = Depends(get_db), user=Depends(require_roles("admin"))):
+def create_user(data: UserCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    if data.role != UserRole.STAFF:
+        authorize(user, "roles.manage")
     account = User(email=normalize_email(str(data.email)), username=data.username,
                    hashed_password=hash_password(data.password.get_secret_value()), role=data.role)
     db.add(account)
@@ -60,11 +63,10 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), user=Depends(re
 
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: str, data: UserUpdate, db: Session = Depends(get_db),
-                user=Depends(require_roles("admin"))):
+                user=Depends(get_current_user)):
     # Serialize administrative changes, including concurrent admin demotions.
     accounts = db.query(User).order_by(User.id).populate_existing().with_for_update().all()
-    if user.role != UserRole.ADMIN or not user.is_active:
-        raise HTTPException(403, "Administrator access required")
+    authorize(user, "users.update")
     account = next((item for item in accounts if item.id == user_id), None)
     if account is None:
         raise HTTPException(404, "User not found")
@@ -76,6 +78,10 @@ def update_user(user_id: str, data: UserUpdate, db: Session = Depends(get_db),
     if not remaining and (not data.is_active or data.role != UserRole.ADMIN):
         raise HTTPException(409, "At least one active administrator is required")
     old = {"role": account.role.value, "is_active": account.is_active}
+    if account.role != data.role:
+        authorize(user, "roles.manage")
+    if account.role != data.role or account.is_active != data.is_active:
+        account.session_version += 1
     account.role, account.is_active = data.role, data.is_active
     audit(db, user, "update", "user", account.id, old, data.model_dump(mode="json"))
     db.commit()
@@ -84,11 +90,10 @@ def update_user(user_id: str, data: UserUpdate, db: Session = Depends(get_db),
 
 @router.post("/{user_id}/approve", response_model=UserResponse)
 def approve_signup(user_id: str, db: Session = Depends(get_db),
-                   user=Depends(require_roles("admin"))):
+                   user=Depends(get_current_user)):
     # Same lock ordering as other administrator account changes.
     accounts = db.query(User).order_by(User.id).populate_existing().with_for_update().all()
-    if user.role != UserRole.ADMIN or not user.is_active or user.signup_pending:
-        raise HTTPException(403, "Administrator access required")
+    authorize(user, "users.create")
     account = next((item for item in accounts if item.id == user_id), None)
     if account is None:
         raise HTTPException(404, "User not found")

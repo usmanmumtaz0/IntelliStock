@@ -10,6 +10,14 @@ from sqlalchemy import create_engine, inspect, text
 from app.core.config import settings
 
 
+def test_privacy_migration_covers_every_backend_table():
+    import runpy
+    from app.models import Base
+    migration = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/0007_backend_table_privacy.py"))
+    requests = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/0008_rbac_requests_sessions.py"))
+    assert set(migration["TABLES"]) | set(requests["PROTECTED_TABLES"]) == set(Base.metadata.tables) | {"alembic_version"}
+
+
 def _index_exists(engine) -> bool:
     with engine.connect() as connection:
         return connection.execute(
@@ -18,6 +26,28 @@ def _index_exists(engine) -> bool:
                 "WHERE type='index' AND name='uq_users_email_normalized'"
             )
         ).first() is not None
+
+
+def test_rbac_migration_preserves_existing_account_and_inventory(tmp_path):
+    engine = create_engine(f"sqlite:///{(tmp_path / 'rbac-existing.sqlite3').as_posix()}")
+    with engine.begin() as c:
+        c.execute(text("CREATE TABLE users (id VARCHAR(36) PRIMARY KEY, hashed_password TEXT, role TEXT, is_active BOOLEAN)"))
+        c.execute(text("INSERT INTO users VALUES ('existing','preserved-hash','staff',0)"))
+        c.execute(text("CREATE TABLE inventory (id VARCHAR(36) PRIMARY KEY, quantity_estimate INTEGER)"))
+        c.execute(text("INSERT INTO inventory VALUES ('existing-stock',17)"))
+    original = settings.DATABASE_URL
+    settings.DATABASE_URL = str(engine.url)
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    try:
+        command.stamp(config, "0007_backend_table_privacy")
+        command.upgrade(config, "head")
+        with engine.connect() as c:
+            assert c.execute(text("SELECT hashed_password,role,is_active,session_version FROM users")).one() == ("preserved-hash","staff",0,0)
+            assert c.execute(text("SELECT quantity_estimate FROM inventory")).scalar() == 17
+        assert "operational_requests" in inspect(engine).get_table_names()
+    finally:
+        settings.DATABASE_URL = original
+        engine.dispose()
 
 
 def test_upgrade_adds_delivery_fields_to_preexisting_tables(tmp_path):

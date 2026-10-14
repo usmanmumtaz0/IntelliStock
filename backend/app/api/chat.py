@@ -13,6 +13,7 @@ from app.models.chat import ChatConversation, ChatTurn
 from app.models.agent_run import AgentRun, AgentRunStatus
 from app.services.chat_providers import provider_ready, data_policy
 from app.services.chat_graph import run_chat
+from app.services.chat_tools import authorize_plan
 from app.core.rate_limiter import shared_rate_limiter
 
 router = APIRouter(prefix="/api/v1/chat", tags=["assistant"])
@@ -50,7 +51,22 @@ def chat_status():
 @router.get("/conversations")
 def conversations(db: Session = Depends(get_db), user=Depends(get_current_user)):
     rows = db.query(ChatConversation).filter_by(user_id=user.id).order_by(ChatConversation.updated_at.desc(),ChatConversation.id).limit(50).all()
-    return [{"id":row.id,"title":row.title,"turn_count":row.turn_count,"updated_at":row.updated_at.isoformat()+"Z"} for row in rows]
+    result = []
+    for row in rows:
+        title = row.title
+        # Titles contain user-supplied product context too. Do not expose them
+        # when a saved turn is no longer permitted under the current policy.
+        for turn in db.query(ChatTurn).filter_by(conversation_id=row.id):
+            try:
+                authorize_plan(user, turn.plan)
+            except HTTPException as exc:
+                if exc.status_code != 403:
+                    raise
+                title = "Restricted conversation"
+                break
+        result.append({"id":row.id,"title":title,"turn_count":row.turn_count,
+                       "updated_at":row.updated_at.isoformat()+"Z"})
+    return result
 
 
 @router.post("/conversations", status_code=201)
@@ -67,6 +83,8 @@ def create_conversation(db: Session = Depends(get_db), user=Depends(get_current_
 def conversation(conversation_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
     row = owned(db, conversation_id, user)
     turns = db.query(ChatTurn).filter_by(conversation_id=row.id).order_by(ChatTurn.sequence).all()
+    for turn in turns:
+        authorize_plan(user, turn.plan)
     return {"id":row.id,"title":row.title,"turns":[serialize_turn(turn) for turn in turns]}
 
 
@@ -81,12 +99,14 @@ def delete_conversation(conversation_id: str, db: Session = Depends(get_db), use
 @router.post("/conversations/{conversation_id}/turns")
 def post_turn(conversation_id: str, data: TurnInput, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # Serialize this user's chat requests across API workers; no inventory locks.
+    authenticated_version = user.session_version
     current = db.query(User).filter_by(id=user.id).populate_existing().with_for_update().one()
-    if not current.is_active:
+    if not current.is_active or current.signup_pending or current.session_version != authenticated_version:
         raise HTTPException(401, "Account disabled")
     row = owned(db, conversation_id, user, lock=True)
     existing = db.query(ChatTurn).filter_by(conversation_id=row.id, request_id=str(data.request_id)).first()
     if existing:
+        authorize_plan(current, existing.plan)
         if existing.question != data.question:
             raise HTTPException(409, "Request ID was already used for another question")
         return serialize_turn(existing)
@@ -103,7 +123,12 @@ def post_turn(conversation_id: str, data: TurnInput, db: Session = Depends(get_d
     previous = db.query(ChatTurn).filter_by(conversation_id=row.id).order_by(ChatTurn.sequence.desc()).first()
     start = monotonic()
     try:
-        result = run_chat(db, data.question, previous.plan if previous else None)
+        if previous:
+            authorize_plan(current, previous.plan)
+        result = run_chat(db, data.question, previous.plan if previous else None, user=current)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise HTTPException(503, "Assistant temporarily unavailable. Inventory monitoring is unaffected.")

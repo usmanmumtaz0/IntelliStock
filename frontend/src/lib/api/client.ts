@@ -22,7 +22,7 @@ async function apiResponse(path: string, init: RequestInit = {}): Promise<Respon
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-  if (response.status === 401) signalUnauthorized();
+  if (response.status === 401 && token === getAccessToken()) signalUnauthorized();
   if (!response.ok) {
     let detail: unknown;
     try {

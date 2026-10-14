@@ -23,7 +23,7 @@ def check_database() -> bool:
         logger.debug("Database connection check: OK")
         return True
     except Exception as e:
-        logger.warning(f"Database connection check failed: {e}")
+        logger.warning("Database connection check failed (%s)", type(e).__name__)
         return False
 
 
@@ -44,5 +44,5 @@ def check_redis() -> bool:
         logger.debug("Redis connection check: OK")
         return True
     except Exception as e:
-        logger.warning(f"Redis connection check failed: {e}")
+        logger.warning("Redis connection check failed (%s)", type(e).__name__)
         return False

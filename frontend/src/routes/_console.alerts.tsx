@@ -28,7 +28,7 @@ function alertIcon(type: string) {
 }
 
 function Alerts() {
-  const { user } = useAuth();
+  const { can } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -43,7 +43,9 @@ function Alerts() {
     queryFn: () => api.inventory(),
     staleTime: 30_000,
   });
-  const canMutate = user?.role === "admin" || user?.role === "manager";
+  const canMutate = ["acknowledge", "resolve", "dismiss", "snooze"].some((action) =>
+    can(`alerts.${action}`),
+  );
 
   const refresh = async () => {
     await Promise.all([
@@ -103,7 +105,7 @@ function Alerts() {
         title="Alerts"
         description={`${openCount} open · ${activeCount} active · persistent alert lifecycle`}
         actions={
-          canMutate && openCount > 0 ? (
+          can("alerts.acknowledge") && openCount > 0 ? (
             <button
               disabled={acknowledgeAll.isPending}
               onClick={() => acknowledgeAll.mutate()}
@@ -122,14 +124,14 @@ function Alerts() {
           {alerts.error.message}
         </p>
       )}
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="console-toolbar">
         <div className="flex rounded-md border p-0.5 text-[12px]">
           {(["active", "all"] as const).map((value) => (
             <button
               key={value}
               onClick={() => setStatusFilter(value)}
               className={cn(
-                "h-7 rounded px-2.5",
+                "min-h-9 rounded px-3",
                 statusFilter === value ? "bg-secondary font-medium" : "text-muted-foreground",
               )}
             >
@@ -138,6 +140,7 @@ function Alerts() {
           ))}
         </div>
         <select
+          aria-label="Filter alerts by type"
           value={typeFilter}
           onChange={(event) => setTypeFilter(event.target.value)}
           className="h-8 rounded-md border bg-surface px-2 text-[12px]"
@@ -198,6 +201,7 @@ function AlertCard({
   onAction: (action: "acknowledge" | "resolve" | "dismiss" | "snooze") => void;
 }) {
   const tone = alertSeverityTone(alert.severity);
+  const { can } = useAuth();
   const Icon = alertIcon(alert.alert_type);
   const closed =
     alert.status === "RESOLVED" || alert.status === "DISMISSED" || alert.status === "EXPIRED";
@@ -247,41 +251,48 @@ function AlertCard({
       </div>
       {canMutate && !closed && (
         <div className="flex shrink-0 gap-1">
-          <button
-            disabled={pending}
-            onClick={() => onAction("snooze")}
-            title="Snooze for one hour"
-            aria-label="Snooze for one hour"
-            className="grid size-8 place-items-center rounded-md border hover:text-primary"
-          >
-            <BellOff className="size-3.5" />
-          </button>
-          {(alert.status === "OPEN" || alert.status === "ESCALATED") && (
+          {can("alerts.snooze") && (
             <button
               disabled={pending}
-              onClick={() => onAction("acknowledge")}
-              title="Acknowledge"
+              onClick={() => onAction("snooze")}
+              title="Snooze for one hour"
+              aria-label="Snooze for one hour"
               className="grid size-8 place-items-center rounded-md border hover:text-primary"
             >
-              <Check className="size-3.5" />
+              <BellOff className="size-3.5" />
             </button>
           )}
-          <button
-            disabled={pending}
-            onClick={() => onAction("resolve")}
-            title="Resolve"
-            className="grid size-8 place-items-center rounded-md border hover:text-healthy"
-          >
-            <CheckCircle2 className="size-3.5" />
-          </button>
-          <button
-            disabled={pending}
-            onClick={() => onAction("dismiss")}
-            title="Dismiss"
-            className="grid size-8 place-items-center rounded-md border hover:text-critical"
-          >
-            <X className="size-3.5" />
-          </button>
+          {can("alerts.acknowledge") &&
+            (alert.status === "OPEN" || alert.status === "ESCALATED") && (
+              <button
+                disabled={pending}
+                onClick={() => onAction("acknowledge")}
+                title="Acknowledge"
+                className="grid size-8 place-items-center rounded-md border hover:text-primary"
+              >
+                <Check className="size-3.5" />
+              </button>
+            )}
+          {can("alerts.resolve") && (
+            <button
+              disabled={pending}
+              onClick={() => onAction("resolve")}
+              title="Resolve"
+              className="grid size-8 place-items-center rounded-md border hover:text-healthy"
+            >
+              <CheckCircle2 className="size-3.5" />
+            </button>
+          )}
+          {can("alerts.dismiss") && (
+            <button
+              disabled={pending}
+              onClick={() => onAction("dismiss")}
+              title="Dismiss"
+              className="grid size-8 place-items-center rounded-md border hover:text-critical"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       )}
     </article>

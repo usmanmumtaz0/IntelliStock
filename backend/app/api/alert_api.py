@@ -9,7 +9,7 @@ from typing import List
 from typing import Literal
 from pydantic import BaseModel
 
-from app.core.security import require_roles
+from app.core.security import get_current_user
 from app.database import get_db
 from app.models.alert import AlertSeverity, AlertStatus, AlertType
 from app.models.user import User
@@ -31,7 +31,7 @@ class SnoozeRequest(BaseModel):
 
 @router.post("/alerts/{alert_id}/snooze", response_model=AlertActionResponse)
 def snooze_alert(alert_id: str, body: SnoozeRequest,
-                 current_user: User = Depends(require_roles("admin", "manager")),
+                 current_user: User = Depends(get_current_user),
                  db: Session = Depends(get_db)):
     try:
         alert = AlertService(db).snooze_alert(alert_id, current_user.id, body.minutes)
@@ -154,7 +154,7 @@ def get_alert_stats(
 @router.post("/alerts/{alert_id}/acknowledge", response_model=AlertActionResponse)
 def acknowledge_alert(
     alert_id: str,
-    current_user: User = Depends(require_roles("admin", "manager")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Acknowledge an alert as the authenticated manager or administrator."""
@@ -167,7 +167,7 @@ def acknowledge_alert(
 
 @router.post("/alerts/acknowledge-all", response_model=AlertActionResponse)
 def acknowledge_all_alerts(
-    current_user: User = Depends(require_roles("admin", "manager")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Acknowledge all open alerts as the authenticated actor."""
@@ -182,7 +182,7 @@ def acknowledge_all_alerts(
 @router.post("/alerts/{alert_id}/resolve", response_model=AlertActionResponse)
 def resolve_alert(
     alert_id: str,
-    current_user: User = Depends(require_roles("admin", "manager")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Resolve an alert."""
@@ -196,12 +196,12 @@ def resolve_alert(
 @router.post("/alerts/{alert_id}/dismiss", response_model=AlertActionResponse)
 def dismiss_alert(
     alert_id: str,
-    _current_user: User = Depends(require_roles("admin", "manager")),
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Dismiss an alert."""
     service = AlertService(db)
-    alert = service.dismiss_alert(alert_id)
+    alert = service.dismiss_alert(alert_id, _current_user.id)
     
     if not alert:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Alert not found")

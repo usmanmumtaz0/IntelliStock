@@ -32,7 +32,7 @@ def mail_data():
         db.add_all([camera, product]); db.flush()
         zone = ShelfZone(camera_id=camera.id, name="Shelf", roi_polygon="[[0,0],[1,0],[1,1]]")
         db.add(zone); db.flush()
-        db.add(Inventory(zone_id=zone.id, product_id=product.id, quantity_estimate=2, status=InventoryStatus.CAMERA_OFFLINE))
+        db.add(Inventory(zone_id=zone.id, product_id=product.id, quantity_estimate=2, status=InventoryStatus.LOW_STOCK))
         alert = Alert(zone_id=zone.id, product_id=product.id, alert_type=AlertType.LOW_STOCK,
             severity=AlertSeverity.HIGH, status=AlertStatus.OPEN, title="Low stock", current_quantity=2, source_system="test")
         db.add(alert)
@@ -273,12 +273,12 @@ def test_report_summary_filters_and_csv_formula_safety(client, mail_data):
     assert client.get("/api/v1/reports/summary").status_code == 401
     result = client.get("/api/v1/reports/summary", headers=headers["staff"]).json()
     assert result["committed_units"] == 2
-    assert result["states"] == {"camera_offline":1}
+    assert result["states"] == {"low_stock":1}
     assert result["history_changes"] == 1
     assert result["active_alerts"] == 1
     assert client.get("/api/v1/reports/summary?zone_id=absent", headers=headers["staff"]).json()["inventory_records"] == 0
     for kind in ("inventory", "history"):
-        response = client.get(f"/api/v1/reports/export?kind={kind}&zone_id={ids['zone']}", headers=headers["staff"])
+        response = client.get(f"/api/v1/reports/export?kind={kind}&zone_id={ids['zone']}", headers=headers["manager"])
         assert response.status_code == 200
         assert response.headers["cache-control"] == "no-store"
         rows = list(csv.DictReader(io.StringIO(response.text.lstrip("\ufeff"))))
@@ -291,9 +291,9 @@ def test_report_summary_filters_and_csv_formula_safety(client, mail_data):
 def test_report_bounds_and_limit(client, mail_data, monkeypatch):
     _, _, _, headers = mail_data
     for query in ("days=0", "days=91", "kind=invalid"):
-        assert client.get(f"/api/v1/reports/export?{query}", headers=headers["staff"]).status_code == 422
+        assert client.get(f"/api/v1/reports/export?{query}", headers=headers["manager"]).status_code == 422
     monkeypatch.setattr("app.api.reports.EXPORT_LIMIT", 0)
-    assert client.get("/api/v1/reports/export", headers=headers["staff"]).status_code == 413
+    assert client.get("/api/v1/reports/export", headers=headers["manager"]).status_code == 413
 
 
 @pytest.mark.parametrize("text", ["=1+1", " +cmd", "\t@SUM(A1)", "\r-1", "\n=1"])

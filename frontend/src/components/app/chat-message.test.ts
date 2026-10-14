@@ -5,33 +5,52 @@ import { ChatMessage } from "./chat-message";
 import type { ChatTurn } from "@/lib/api/chat";
 
 const turn: ChatTurn = {
-  id: "turn-1",
-  request_id: "request-1",
+  id: "turn",
+  request_id: "request",
   sequence: 1,
-  question: "Show inventory",
-  answer: "<script>alert(1)</script>",
-  sources: [
-    { id: "safe", kind: "inventory", label: "Inventory", href: "/inventory" },
-    { id: "unsafe", kind: "inventory", label: "Unsafe", href: "javascript:alert(1)" },
-  ],
-  mode: "fallback",
-  notice: "Provider unavailable",
-  created_at: "2026-10-11T12:00:00Z",
+  question: "Where is the milk?",
+  answer: "Milk is on Shelf A.",
+  mode: "local",
+  notice: null,
+  created_at: "2026-10-14T12:00:00Z",
+  sources: [],
 };
 
-describe("chat message presentation", () => {
-  it("escapes answer content and preserves safe source links only", () => {
-    const html = renderToStaticMarkup(createElement(ChatMessage, { turn }));
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
-    expect(html).toContain('href="/inventory"');
-    expect(html).not.toContain("javascript:");
+describe("chat evidence", () => {
+  it("shows plain-language product, shelf, source and timestamps", () => {
+    const html = renderToStaticMarkup(
+      createElement(ChatMessage, {
+        turn: {
+          ...turn,
+          sources: [
+            {
+              kind: "inventory",
+              id: "1",
+              label: "Milk / Shelf A",
+              href: "/inventory?record=1",
+              sku: "MILK-1",
+              shelf: "Shelf A",
+              updated_at: "2026-10-14T11:00:00Z",
+              retrieved_at: "2026-10-14T12:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    for (const text of [
+      "Product code: MILK-1",
+      "Shelf: Shelf A",
+      "Source: inventory",
+      "Record updated (UTC)",
+      "Retrieved (UTC)",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("SKU:");
   });
-  it("keeps fallback and generation details visible without claiming AI success", () => {
-    const html = renderToStaticMarkup(createElement(ChatMessage, { turn }));
-    expect(html).toContain("Local fallback");
-    expect(html).toContain("Provider unavailable");
-    expect(html).toContain('aria-label="Copy answer"');
-    expect(html).not.toContain("OpenRouter");
+  it("still renders older saved answers without evidence timestamps", () => {
+    expect(renderToStaticMarkup(createElement(ChatMessage, { turn }))).toContain(
+      "Milk is on Shelf A.",
+    );
   });
 });

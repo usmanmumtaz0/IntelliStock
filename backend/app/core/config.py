@@ -42,8 +42,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT_REQUESTS: int = Field(default=100, ge=1)
     RATE_LIMIT_DEFAULT_WINDOW_SECONDS: int = Field(default=60, ge=1)
 
-    DATABASE_POOL_SIZE: int = Field(default=10, ge=1, le=100)
-    DATABASE_MAX_OVERFLOW: int = Field(default=20, ge=0, le=200)
+    # Per-process budget: leave room for migrations and other services on small poolers.
+    DATABASE_POOL_SIZE: int = Field(default=3, ge=1, le=100)
+    DATABASE_MAX_OVERFLOW: int = Field(default=2, ge=0, le=200)
     ALERT_COOLDOWN_SECONDS: int = Field(default=300, ge=0)
     ALERT_ESCALATION_SECONDS: int = Field(default=900, ge=60)
     CV_MODEL_PATH: str = ""

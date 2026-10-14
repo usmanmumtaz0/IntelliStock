@@ -21,6 +21,7 @@ class ConnectionManager:
     def __init__(self):
         """Initialize connection manager."""
         self.active_connections: Set[WebSocket] = set()
+        self.connection_tokens = {}
         self.redis_client = None
         self.broadcast_thread = None
         self.running = False
@@ -36,6 +37,7 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         """Remove a WebSocket connection."""
         self.active_connections.discard(websocket)
+        self.connection_tokens.pop(websocket, None)
         logger.info(f"Client disconnected. Total: {len(self.active_connections)}")
     
     async def broadcast(self, message: dict):
@@ -46,6 +48,12 @@ class ConnectionManager:
         disconnected = set()
         for connection in tuple(self.active_connections):
             try:
+                from app.core.security import validate_websocket_token
+                token = self.connection_tokens.get(connection)
+                if not token or not await asyncio.to_thread(validate_websocket_token, token):
+                    await connection.close(code=4401)
+                    disconnected.add(connection)
+                    continue
                 await asyncio.wait_for(connection.send_json(message), timeout=2)
             except Exception as e:
                 logger.warning(f"Error sending to client: {e}")

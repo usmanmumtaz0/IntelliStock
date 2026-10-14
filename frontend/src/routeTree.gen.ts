@@ -17,6 +17,7 @@ import { Route as ConsoleAssistantRouteImport } from './routes/_console.assistan
 import { Route as ConsoleDashboardRouteImport } from './routes/_console.dashboard'
 import { Route as ConsoleInventoryRouteImport } from './routes/_console.inventory'
 import { Route as ConsoleReportsRouteImport } from './routes/_console.reports'
+import { Route as ConsoleRequestsRouteImport } from './routes/_console.requests'
 import { Route as ConsoleSettingsRouteImport } from './routes/_console.settings'
 import { Route as ConsoleShelvesRouteImport } from './routes/_console.shelves'
 
@@ -59,6 +60,11 @@ const ConsoleReportsRoute = ConsoleReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleRequestsRoute = ConsoleRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 const ConsoleSettingsRoute = ConsoleSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof ConsoleDashboardRoute
   '/inventory': typeof ConsoleInventoryRoute
   '/reports': typeof ConsoleReportsRoute
+  '/requests': typeof ConsoleRequestsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
 }
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof ConsoleDashboardRoute
   '/inventory': typeof ConsoleInventoryRoute
   '/reports': typeof ConsoleReportsRoute
+  '/requests': typeof ConsoleRequestsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
 }
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/_console/dashboard': typeof ConsoleDashboardRoute
   '/_console/inventory': typeof ConsoleInventoryRoute
   '/_console/reports': typeof ConsoleReportsRoute
+  '/_console/requests': typeof ConsoleRequestsRoute
   '/_console/settings': typeof ConsoleSettingsRoute
   '/_console/shelves': typeof ConsoleShelvesRoute
 }
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inventory'
     | '/reports'
+    | '/requests'
     | '/settings'
     | '/shelves'
   fileRoutesByTo: FileRoutesByTo
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inventory'
     | '/reports'
+    | '/requests'
     | '/settings'
     | '/shelves'
   id:
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/_console/dashboard'
     | '/_console/inventory'
     | '/_console/reports'
+    | '/_console/requests'
     | '/_console/settings'
     | '/_console/shelves'
   fileRoutesById: FileRoutesById
@@ -205,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsoleReportsRouteImport
       parentRoute: typeof ConsoleRoute
     }
+    '/_console/requests': {
+      id: '/_console/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof ConsoleRequestsRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
     '/_console/settings': {
       id: '/_console/settings'
       path: '/settings'
@@ -229,6 +248,7 @@ interface ConsoleRouteChildren {
   ConsoleDashboardRoute: typeof ConsoleDashboardRoute
   ConsoleInventoryRoute: typeof ConsoleInventoryRoute
   ConsoleReportsRoute: typeof ConsoleReportsRoute
+  ConsoleRequestsRoute: typeof ConsoleRequestsRoute
   ConsoleSettingsRoute: typeof ConsoleSettingsRoute
   ConsoleShelvesRoute: typeof ConsoleShelvesRoute
 }
@@ -240,6 +260,7 @@ const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleDashboardRoute: ConsoleDashboardRoute,
   ConsoleInventoryRoute: ConsoleInventoryRoute,
   ConsoleReportsRoute: ConsoleReportsRoute,
+  ConsoleRequestsRoute: ConsoleRequestsRoute,
   ConsoleSettingsRoute: ConsoleSettingsRoute,
   ConsoleShelvesRoute: ConsoleShelvesRoute,
 }

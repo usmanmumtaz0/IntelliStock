@@ -51,7 +51,7 @@
 
 /* Light theme */
 :root {
-  --radius: 0.375rem;
+  --radius: 0.5rem;
   --background: oklch(0.985 0.002 250);
   --foreground: oklch(0.2 0.015 255);
   --surface: oklch(1 0 0);
@@ -140,6 +140,74 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+  }
+  :where(button, a, input, textarea, select, summary):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+  :where(button, summary):not(:disabled) {
+    cursor: pointer;
+  }
+  :where(button, input, select, textarea):disabled {
+    cursor: not-allowed;
+  }
+  :where(input, select, textarea) {
+    accent-color: var(--primary);
+  }
+}
+
+/* Consistent data density across all console pages, including nested management tables. */
+@layer components {
+  .console-content table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .console-content thead {
+    background: var(--surface-2);
+  }
+  .console-content th {
+    padding: 0.85rem 1rem;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .console-content td {
+    padding: 0.85rem 1rem;
+    vertical-align: middle;
+  }
+  .console-content tbody tr {
+    border-bottom: 1px solid var(--border);
+  }
+  .console-content tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .console-content tbody tr:hover {
+    background: color-mix(in oklab, var(--primary) 4%, var(--surface));
+  }
+  .console-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+  }
+  .console-toolbar select {
+    min-height: 2.5rem;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

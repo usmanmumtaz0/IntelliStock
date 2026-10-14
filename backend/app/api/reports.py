@@ -12,6 +12,8 @@ from app.models.inventory_history import InventoryHistory
 from app.models.product import Product
 from app.models.zone import ShelfZone
 from app.models.alert import Alert, AlertStatus
+from app.core.security import get_current_user
+from app.services.operations import audit
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 EXPORT_LIMIT = 10000
@@ -46,7 +48,7 @@ def summary(days: int = Query(7, ge=1, le=90), zone_id: str | None = None, db: S
 
 @router.get("/export")
 def export_report(kind: Literal["inventory", "history"] = "inventory", days: int = Query(7, ge=1, le=90),
-                  zone_id: str | None = None, db: Session = Depends(get_db)):
+                  zone_id: str | None = None, db: Session = Depends(get_db), user=Depends(get_current_user)):
     now = datetime.utcnow()
     if kind == "inventory":
         query = db.query(Inventory, Product.sku, Product.name, ShelfZone.name).join(Product, Inventory.product_id == Product.id).join(ShelfZone, Inventory.zone_id == ShelfZone.id)
@@ -72,6 +74,8 @@ def export_report(kind: Literal["inventory", "history"] = "inventory", days: int
     writer = csv.writer(output)
     writer.writerow(header)
     writer.writerows([csv_cell(value) for value in row] for row in data)
+    audit(db, user, "export", "report", kind, new={"rows": len(rows), "zone_id": zone_id, "days": days})
+    db.commit()
     return Response(content="\ufeff" + output.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="intellistock-{kind}-{now:%Y%m%d}.csv"',
                              "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})

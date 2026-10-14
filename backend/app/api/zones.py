@@ -13,7 +13,7 @@ from app.models.camera import Camera
 from app.models.product import Product
 from app.models.delivery import ZoneProductMapping
 from app.schemas.zone import ZoneInput
-from app.core.security import require_roles
+from app.core.security import get_current_user
 from app.services.operations import audit
 from app.services.outbox import enqueue
 import json
@@ -85,12 +85,12 @@ def save_configuration(db, data, user, zone=None):
 
 
 @router.post("", status_code=201)
-def create_zone(data: ZoneInput, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def create_zone(data: ZoneInput, db: Session = Depends(get_db), user=Depends(get_current_user)):
     return save_configuration(db, data, user)
 
 
 @router.put("/{zone_id}")
-def update_zone(zone_id: str, data: ZoneInput, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def update_zone(zone_id: str, data: ZoneInput, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # Camera lock precedes zone lock, consistent with configuration creation.
     db.query(Camera).filter_by(id=data.camera_id).with_for_update().first()
     zone = db.query(ShelfZone).filter_by(id=zone_id).with_for_update().first()

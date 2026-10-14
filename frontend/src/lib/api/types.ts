@@ -1,6 +1,7 @@
 export type UserRole = "admin" | "manager" | "staff";
 
 export interface AuthUser {
+  permissions: string[];
   userId: string;
   username: string;
   email: string;
@@ -8,6 +9,7 @@ export interface AuthUser {
 }
 
 export interface LoginResponse {
+  permissions: string[];
   access_token: string;
   token_type: string;
   user_id: string;
@@ -17,6 +19,7 @@ export interface LoginResponse {
 }
 
 export interface VerifyResponse {
+  permissions: string[];
   user_id: string;
   username: string;
   email: string;

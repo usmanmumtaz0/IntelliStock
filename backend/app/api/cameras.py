@@ -8,7 +8,7 @@ from typing import List
 from app.database import get_db
 from app.models.camera import Camera
 from app.schemas.camera import CameraCreate, CameraUpdate, CameraResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user
 from app.models.zone import ShelfZone
 from app.models.inventory import Inventory, InventoryStatus
 from app.models.event import InventoryEvent
@@ -39,9 +39,9 @@ def get_camera(camera_id: str, db: Session = Depends(get_db)):
     "",
     response_model=CameraResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "manager"))],
+    dependencies=[Depends(get_current_user)],
 )
-def create_camera(camera: CameraCreate, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def create_camera(camera: CameraCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Create a new camera."""
     db_camera = Camera(**camera.dict())
     db.add(db_camera)
@@ -56,9 +56,9 @@ def create_camera(camera: CameraCreate, db: Session = Depends(get_db), user=Depe
 @router.put(
     "/{camera_id}",
     response_model=CameraResponse,
-    dependencies=[Depends(require_roles("admin", "manager"))],
+    dependencies=[Depends(get_current_user)],
 )
-def update_camera(camera_id: str, camera: CameraUpdate, db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+def update_camera(camera_id: str, camera: CameraUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Update a camera."""
     db_camera = db.query(Camera).filter(Camera.id == camera_id).with_for_update().first()
     if not db_camera:
@@ -83,9 +83,9 @@ def update_camera(camera_id: str, camera: CameraUpdate, db: Session = Depends(ge
 @router.delete(
     "/{camera_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_roles("admin"))],
+    dependencies=[Depends(get_current_user)],
 )
-def delete_camera(camera_id: str, db: Session = Depends(get_db), user=Depends(require_roles("admin"))):
+def delete_camera(camera_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Delete a camera."""
     db_camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not db_camera:

@@ -6,9 +6,9 @@ import { Panel, Tag } from "./primitives";
 import { ActionButton, OperationError } from "./operation-fields";
 
 export function NotificationDeliveries() {
-  const { user } = useAuth();
+  const { can } = useAuth();
   const [offset, setOffset] = useState(0);
-  const enabled = user?.role === "admin";
+  const enabled = can("settings.read");
   const config = useQuery({
     queryKey: ["notification-config"],
     queryFn: reporting.configuration,

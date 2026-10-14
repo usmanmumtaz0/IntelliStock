@@ -7,18 +7,19 @@ import { useAuth } from "@/lib/auth";
 import { ActionButton, Field, OperationError } from "./operation-fields";
 
 export function InventoryCorrection({ item }: { item: InventoryDto }) {
-  const { user } = useAuth();
+  const { can } = useAuth();
   const queryClient = useQueryClient();
   const [snapshot, setSnapshot] = useState(item);
   const save = useMutation({
     mutationFn: (input: Parameters<typeof operations.correctInventory>[1]) =>
       operations.correctInventory(item.id, input),
-    onSuccess: async () => {
+    onSuccess: async (updated) => {
+      setSnapshot(updated);
       toast.success("Correction recorded with your account and reason");
       await queryClient.invalidateQueries();
     },
   });
-  if (user?.role !== "admin" && user?.role !== "manager") return null;
+  if (!can("inventory.adjust_stock")) return null;
   return (
     <form
       className="space-y-3 rounded-md border p-3"

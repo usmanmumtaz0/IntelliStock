@@ -66,21 +66,21 @@ def test_account_management_and_revocation(client, ops):
     assert client.get("/api/v1/products", headers=headers["staff"]).status_code == 401
     # Existing signed manager token cannot retain privileges after demotion.
     assert client.put(f"/api/v1/users/{ops['users']['manager']}", json={"role":"staff", "is_active":True}, headers=headers["admin"]).status_code == 200
-    assert client.post("/api/v1/products", json={"sku":"denied", "name":"denied"}, headers=headers["manager"]).status_code == 403
+    assert client.post("/api/v1/products", json={"sku":"denied", "name":"denied"}, headers=headers["manager"]).status_code == 401
 
 
 def test_threshold_update_preserves_offline_and_emits_state(client, ops):
     url = f"/api/v1/products/{ops['product']}"
     assert client.put(url, headers=ops["headers"]["staff"], json={"low_stock_threshold":10}).status_code == 403
-    assert client.put(url, headers=ops["headers"]["manager"], json={"low_stock_threshold":None}).status_code == 422
-    assert client.put(url, headers=ops["headers"]["manager"], json={"low_stock_threshold":10}).status_code == 200
+    assert client.put(url, headers=ops["headers"]["admin"], json={"low_stock_threshold":None}).status_code == 422
+    assert client.put(url, headers=ops["headers"]["admin"], json={"low_stock_threshold":10}).status_code == 200
     with SessionLocal() as db:
         inv = db.get(Inventory, ops["inventory"])
         assert inv.status == InventoryStatus.LOW_STOCK
         assert db.query(AuditLog).filter_by(resource_id=ops["product"], action="update").count() == 1
         assert any(json.loads(row.payload).get("product_id") == ops["product"] for row in db.query(OutboxEvent).filter_by(topic="stock_updated"))
         inv.status = InventoryStatus.CAMERA_OFFLINE; db.commit()
-    assert client.put(url, headers=ops["headers"]["manager"], json={"low_stock_threshold":0}).status_code == 200
+    assert client.put(url, headers=ops["headers"]["admin"], json={"low_stock_threshold":0}).status_code == 200
     with SessionLocal() as db:
         assert db.get(Inventory, ops["inventory"]).status == InventoryStatus.CAMERA_OFFLINE
     assert client.delete(url, headers=ops["headers"]["admin"]).status_code == 409
@@ -118,18 +118,18 @@ def test_correction_rollback_keeps_inventory_history_outbox_atomic(ops):
 def test_shelf_configuration_permissions_and_safety(client, ops):
     data = zone_data(ops)
     assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["staff"]).status_code == 403
-    response = client.post("/api/v1/zones", json=data, headers=ops["headers"]["manager"])
+    response = client.post("/api/v1/zones", json=data, headers=ops["headers"]["admin"])
     assert response.status_code == 201, response.text
     config = response.json()
     assert config["restart_required"] and config["products"][0]["allow_empty"] is False
-    assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["manager"]).status_code == 409
-    assert client.get(f"/api/v1/zones/{config['id']}/configuration", headers=ops["headers"]["staff"]).json()["polygon"] == data["polygon"]
+    assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["admin"]).status_code == 409
+    assert client.get(f"/api/v1/zones/{config['id']}/configuration", headers=ops["headers"]["admin"]).json()["polygon"] == data["polygon"]
     data["name"] = "Changed shelf"
-    assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["manager"]).status_code == 200
+    assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["admin"]).status_code == 200
     with SessionLocal() as db:
         assert db.query(AuditLog).filter_by(resource_id=config["id"]).count() == 2
         db.get(Camera, ops["camera"]).is_active = True; db.commit()
-    assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["manager"]).status_code == 409
+    assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["admin"]).status_code == 409
 
 
 @pytest.mark.parametrize("polygon", [
@@ -145,12 +145,12 @@ def test_reject_invalid_roi(polygon, ops):
 def test_mapping_and_camera_validation(client, ops):
     data = zone_data(ops)
     data["products"] *= 2
-    assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["manager"]).status_code == 422
+    assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["admin"]).status_code == 422
     camera_url = f"/api/v1/cameras/{ops['camera']}"
-    assert client.put(camera_url, json={"fps":None}, headers=ops["headers"]["manager"]).status_code == 422
-    assert client.put(camera_url, json={"offline_timeout_seconds":45}, headers=ops["headers"]["manager"]).json()["offline_timeout_seconds"] == 45
+    assert client.put(camera_url, json={"fps":None}, headers=ops["headers"]["admin"]).status_code == 422
+    assert client.put(camera_url, json={"offline_timeout_seconds":45}, headers=ops["headers"]["admin"]).json()["offline_timeout_seconds"] == 45
     assert client.delete(camera_url, headers=ops["headers"]["admin"]).status_code == 409
-    assert client.put(camera_url, json={"is_active":False, "source_url":"rtsp://secret:password@camera"}, headers=ops["headers"]["manager"]).status_code == 200
+    assert client.put(camera_url, json={"is_active":False, "source_url":"rtsp://secret:password@camera"}, headers=ops["headers"]["admin"]).status_code == 200
     with SessionLocal() as db:
         assert db.get(Inventory, ops["inventory"]).status == InventoryStatus.CAMERA_OFFLINE
         assert all("password" not in json.dumps(log.new_values) for log in db.query(AuditLog).filter_by(resource_id=ops["camera"]))
@@ -164,9 +164,9 @@ def test_configuration_revision_stops_old_worker(client, ops):
         revision = camera.updated_at
         assert camera_configuration_current(db, camera.id, revision)
     url = f"/api/v1/cameras/{ops['camera']}"
-    assert client.put(url, json={"is_active":False}, headers=ops["headers"]["manager"]).status_code == 200
-    assert client.post("/api/v1/zones", json=zone_data(ops), headers=ops["headers"]["manager"]).status_code == 201
-    assert client.put(url, json={"is_active":True}, headers=ops["headers"]["manager"]).status_code == 200
+    assert client.put(url, json={"is_active":False}, headers=ops["headers"]["admin"]).status_code == 200
+    assert client.post("/api/v1/zones", json=zone_data(ops), headers=ops["headers"]["admin"]).status_code == 201
+    assert client.put(url, json={"is_active":True}, headers=ops["headers"]["admin"]).status_code == 200
     with SessionLocal() as db:
         assert not camera_configuration_current(db, ops["camera"], revision)
 

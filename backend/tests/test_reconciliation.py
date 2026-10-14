@@ -77,7 +77,7 @@ def sample_data(db: Session):
         email=f"reconcile-{str(uuid.uuid4())[:8]}@test.local",
         username=f"reconcile-{str(uuid.uuid4())[:8]}",
         hashed_password=hash_password("reconciliation-test-password"),
-        role=UserRole.MANAGER,
+        role=UserRole.ADMIN,
     )
     db.add(user)
     db.commit()

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { reporting } from "@/lib/api/reporting";
+import { useAuth } from "@/lib/auth";
 import { PageHeader, Panel } from "@/components/app/primitives";
 import { ActionButton, OperationError } from "@/components/app/operation-fields";
 
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/_console/reports")({
 });
 
 function Reports() {
+  const { can } = useAuth();
   const [days, setDays] = useState(7);
   const [zone, setZone] = useState("");
   const zones = useQuery({ queryKey: ["zones"], queryFn: api.zones });
@@ -37,7 +39,7 @@ function Reports() {
         title="Operational reports"
         description="Committed inventory and recorded changes. No inferred sales or model-generated totals."
       />
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="console-toolbar items-end">
         <label className="grid gap-1 text-xs">
           History period
           <select
@@ -67,12 +69,16 @@ function Reports() {
             ))}
           </select>
         </label>
-        <ActionButton disabled={download.isPending} onClick={() => download.mutate("inventory")}>
-          Export current inventory
-        </ActionButton>
-        <ActionButton disabled={download.isPending} onClick={() => download.mutate("history")}>
-          Export change history
-        </ActionButton>
+        {can("reports.export") && (
+          <ActionButton disabled={download.isPending} onClick={() => download.mutate("inventory")}>
+            Export current inventory
+          </ActionButton>
+        )}
+        {can("reports.export") && (
+          <ActionButton disabled={download.isPending} onClick={() => download.mutate("history")}>
+            Export change history
+          </ActionButton>
+        )}
       </div>
       <OperationError error={summary.error || download.error || zones.error} />
       {summary.isLoading && <p className="text-sm">Loading report…</p>}
@@ -85,7 +91,7 @@ function Reports() {
             {[
               ["Shelf/product records", summary.data.inventory_records],
               ["Distinct products", summary.data.distinct_products],
-              ["Committed units", summary.data.committed_units],
+              ["Recorded inventory units", summary.data.committed_units],
               ["Active alerts", summary.data.active_alerts],
             ].map(([label, value]) => (
               <Panel key={label} title={label}>
@@ -116,7 +122,7 @@ function Reports() {
               ))}
               {!summary.data.history_changes && (
                 <p className="text-sm text-muted-foreground">
-                  No committed changes in this period.
+                  No inventory changes in this period.
                 </p>
               )}
             </Panel>
@@ -124,8 +130,8 @@ function Reports() {
         </>
       )}
       <p className="mt-4 text-xs text-muted-foreground">
-        Exports are limited to 10,000 rows; narrow the shelf or history period for larger datasets.
-        Inventory export is current state, independent of history period.
+        Exports are limited to 10,000 rows; choose a shelf or shorter history period for larger
+        inventories. Inventory export is current state, independent of history period.
       </p>
     </>
   );

@@ -24,9 +24,24 @@ export function ChatMessage({ turn }: { turn: ChatTurn }) {
                 <a
                   key={`${source.kind}-${source.id}`}
                   href={href}
-                  className="max-w-full truncate rounded-full border px-3 py-1 text-xs text-primary hover:bg-accent"
+                  className="max-w-full break-words rounded-lg border px-3 py-2 text-xs text-primary hover:bg-accent"
                 >
-                  {source.label}
+                  <span className="block font-medium">{source.label}</span>
+                  <span className="block text-muted-foreground">
+                    Source: {source.kind === "aggregate" ? "inventory summary" : source.kind}
+                    {source.sku ? ` · Product code: ${source.sku}` : ""}
+                    {source.shelf ? ` · Shelf: ${source.shelf}` : ""}
+                  </span>
+                  {source.updated_at && (
+                    <span className="block text-muted-foreground">
+                      Record updated (UTC): {source.updated_at}
+                    </span>
+                  )}
+                  {source.retrieved_at && (
+                    <span className="block text-muted-foreground">
+                      Retrieved (UTC): {source.retrieved_at}
+                    </span>
+                  )}
                 </a>
               ) : null;
             })}

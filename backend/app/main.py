@@ -16,7 +16,8 @@ from app.api.websocket import router as ws_router
 from app.core.config import settings
 from app.core.health import check_database, check_redis
 from app.core.rate_limiter import check_rate_limit
-from app.core.security import get_current_user, require_roles
+from app.core.security import get_current_user
+from app.core.permissions import enforce_route_permission
 from app.database import init_db
 from app.websocket.manager import manager
 from app.services.camera_heartbeat import get_heartbeat_service
@@ -24,6 +25,7 @@ from app.services.alert_service import InvalidAlertTransition
 from app.api import users
 from app.api import notifications, reports
 from app.api import chat
+from app.api import requests as operational_requests
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -85,7 +87,7 @@ app = FastAPI(
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path.rstrip("/") == "/api/v1/auth/signup":
+    if request.url.path.startswith("/api/v1/"):
         # Pydantic errors can include rejected passwords or entire request objects.
         return JSONResponse(status_code=422, content={"detail": [
             {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
@@ -113,6 +115,16 @@ async def invalid_alert_transition(_request: Request, exc: InvalidAlertTransitio
     return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
+@app.middleware("http")
+async def private_chat_cache_policy(request: Request, call_next: Callable):
+    response = await call_next(request)
+    if request.url.path == "/api/v1/chat" or request.url.path.startswith("/api/v1/chat/"):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Vary"] = "Authorization"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -122,19 +134,20 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
-protected = [Depends(get_current_user)]
+protected = [Depends(enforce_route_permission)]
 app.include_router(cameras.router, dependencies=protected)
 app.include_router(products.router, dependencies=protected)
 app.include_router(inventory.router, dependencies=protected)
 app.include_router(inventory_history.router, dependencies=protected)
 app.include_router(alert_api.router, dependencies=protected)
-app.include_router(audit_api.router, dependencies=[Depends(require_roles("admin"))])
-app.include_router(health_api.router, dependencies=[Depends(require_roles("admin"))])
+app.include_router(audit_api.router, dependencies=protected)
+app.include_router(health_api.router, dependencies=protected)
 app.include_router(zones.router, dependencies=protected)
 app.include_router(users.router, dependencies=protected)
 app.include_router(notifications.router, dependencies=protected)
 app.include_router(reports.router, dependencies=protected)
 app.include_router(chat.router, dependencies=protected)
+app.include_router(operational_requests.router, dependencies=protected)
 app.include_router(events.router, dependencies=protected)
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(agents.router, dependencies=protected)

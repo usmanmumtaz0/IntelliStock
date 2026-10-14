@@ -93,7 +93,7 @@ function Inventory() {
     <>
       <PageHeader
         title="Inventory"
-        description="Verified quantities remain authoritative while new camera observations are reconciled."
+        description="Review inventory, check shelf availability and record physical counts. Camera verification is shown separately."
       />
       {inventory.error && (
         <p
@@ -103,17 +103,19 @@ function Inventory() {
           {inventory.error.message}
         </p>
       )}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex h-8 w-64 items-center gap-2 rounded-md border bg-surface px-2.5">
+      <div className="console-toolbar">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border bg-background px-3 sm:w-64">
           <Search className="size-3.5 text-muted-foreground" />
           <input
             value={search.q ?? ""}
             onChange={(event) => setSearch({ q: event.target.value || undefined })}
-            placeholder="Search SKU or product"
-            className="flex-1 bg-transparent text-[12px] outline-none"
+            placeholder="Search product name or code"
+            aria-label="Search product name or code"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
         </div>
         <select
+          aria-label="Filter inventory by shelf zone"
           value={search.zone ?? ""}
           onChange={(event) => setSearch({ zone: event.target.value || undefined, sku: undefined })}
           className="h-8 rounded-md border bg-surface px-2 text-[12px] outline-none"
@@ -131,7 +133,7 @@ function Inventory() {
               key={status ?? "all"}
               onClick={() => setSearch({ status })}
               className={cn(
-                "h-7 rounded px-2.5 capitalize",
+                "min-h-9 rounded px-2.5 capitalize",
                 search.status === status ? "bg-secondary font-medium" : "text-muted-foreground",
               )}
             >
@@ -164,7 +166,7 @@ function Inventory() {
               <thead className="border-b bg-surface-2/50 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <tr>
                   {[
-                    "SKU",
+                    "Product code",
                     "Product",
                     "Quantity",
                     "Zone",

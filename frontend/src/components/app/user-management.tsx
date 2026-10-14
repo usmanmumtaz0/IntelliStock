@@ -8,12 +8,12 @@ import { Panel, Tag } from "./primitives";
 import { ActionButton, Field, OperationError } from "./operation-fields";
 
 export function UserManagement() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const queryClient = useQueryClient();
   const accounts = useQuery({
     queryKey: ["accounts"],
     queryFn: operations.accounts,
-    enabled: user?.role === "admin",
+    enabled: can("users.read"),
   });
   const [adding, setAdding] = useState(false);
   const create = useMutation({
@@ -25,25 +25,28 @@ export function UserManagement() {
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
     },
   });
-  if (user?.role !== "admin") return null;
+  if (!can("users.read")) return null;
   return (
     <Panel
       title="User access · administrator only"
       className="xl:col-span-2"
       action={
-        <ActionButton
-          onClick={() => {
-            create.reset();
-            setAdding(!adding);
-          }}
-        >
-          Add user
-        </ActionButton>
+        can("users.create") && (
+          <ActionButton
+            onClick={() => {
+              create.reset();
+              setAdding(!adding);
+            }}
+          >
+            Add user
+          </ActionButton>
+        )
       }
     >
       <p className="mb-4 text-xs text-muted-foreground">
-        Single-store access: staff read data; managers configure stock and cameras; administrators
-        also manage accounts. Your own administrator role is protected.
+        Staff read inventory and submit requests; managers review requests and adjust stock.
+        Administrators also manage accounts and camera configuration. Your own administrator role is
+        protected.
       </p>
       <OperationError error={accounts.error} />
       {accounts.isLoading && <p className="text-sm">Loading accounts…</p>}
@@ -52,11 +55,11 @@ export function UserManagement() {
           <AccountRow
             key={`${account.id}-${account.role}-${account.is_active}-${account.signup_pending}`}
             account={account}
-            self={account.id === user.userId}
+            self={account.id === user?.userId}
           />
         ))}
       </div>
-      {adding && (
+      {adding && can("users.create") && (
         <form
           className="mt-4 grid gap-3 rounded-md border p-4 sm:grid-cols-2"
           onSubmit={(event) => {
@@ -117,6 +120,7 @@ function RoleSelect({
 }
 
 function AccountRow({ account, self }: { account: AccountDto; self: boolean }) {
+  const { can } = useAuth();
   const queryClient = useQueryClient();
   const approve = useMutation({
     mutationFn: () => operations.approveSignup(account.id),
@@ -156,18 +160,18 @@ function AccountRow({ account, self }: { account: AccountDto; self: boolean }) {
       </div>
       <RoleSelect
         defaultValue={account.role}
-        disabled={self || update.isPending || account.signup_pending}
+        disabled={!can("roles.manage") || self || update.isPending || account.signup_pending}
       />
       <label className="flex h-9 items-center gap-2 text-xs">
         <input
           type="checkbox"
           name="active"
           defaultChecked={account.is_active}
-          disabled={self || update.isPending || account.signup_pending}
+          disabled={!can("users.update") || self || update.isPending || account.signup_pending}
         />
         Active
       </label>
-      {account.signup_pending && (
+      {account.signup_pending && can("users.create") && (
         <ActionButton
           type="button"
           disabled={approve.isPending}
@@ -183,9 +187,11 @@ function AccountRow({ account, self }: { account: AccountDto; self: boolean }) {
           Approve signup
         </ActionButton>
       )}
-      <ActionButton type="submit" disabled={self || update.isPending || account.signup_pending}>
-        Save access
-      </ActionButton>
+      {can("users.update") && can("roles.manage") && (
+        <ActionButton type="submit" disabled={self || update.isPending || account.signup_pending}>
+          Save access
+        </ActionButton>
+      )}
       <OperationError error={update.error} />
       <OperationError error={approve.error} />
     </form>

@@ -29,6 +29,7 @@ class TokenData(BaseModel):
     email: str
     role: UserRole
     token_id: str
+    session_version: int = 0
 
 
 def normalize_email(value: str) -> str:
@@ -55,6 +56,7 @@ def create_access_token(
     role: str,
     email: str,
     expires_delta: Optional[timedelta] = None,
+    session_version: int = 0,
 ) -> str:
     """Create a signed, expiring access token for an existing user."""
     now = datetime.now(timezone.utc)
@@ -66,6 +68,7 @@ def create_access_token(
         "role": role,
         "type": "access",
         "jti": str(uuid4()),
+        "sv": session_version,
         "iat": now,
         "exp": expire,
     }
@@ -93,8 +96,9 @@ def decode_access_token(token: str) -> Optional[TokenData]:
             email=normalize_email(str(payload["email"])),
             role=UserRole(str(payload["role"])),
             token_id=str(payload["jti"]),
+            session_version=int(payload.get("sv", 0)),
         )
-    except (JWTError, ValueError):
+    except (JWTError, ValueError, TypeError):
         return None
 
 
@@ -130,6 +134,8 @@ def get_user_for_token(db: Session, token: str) -> Optional[User]:
     user = UserRepository(db).get_by_id(token_data.user_id)
     if user is None or not user.is_active or user.signup_pending:
         return None
+    if user.session_version != token_data.session_version:
+        return None
     return user
 
 
@@ -148,32 +154,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
-def require_roles(*allowed_roles: str | UserRole):
-    """Create a dependency that enforces a server-side role allowlist."""
-    allowed = {role.value if isinstance(role, UserRole) else str(role) for role in allowed_roles}
-
-    def dependency(current_user: User = Depends(get_current_user)) -> User:
-        current_role = current_user.role.value if isinstance(current_user.role, UserRole) else str(current_user.role)
-        if current_role not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-        return current_user
-
-    return dependency
-
-
-ROLE_PERMISSIONS = {
-    UserRole.ADMIN.value: {"read", "write", "delete", "admin"},
-    UserRole.MANAGER.value: {"read", "write"},
-    UserRole.STAFF.value: {"read"},
-}
-
-
-def has_permission(role: str, permission: str) -> bool:
-    """Check a role's documented capability."""
-    return permission in ROLE_PERMISSIONS.get(role, set())
-
-
 def validate_websocket_token(token: str) -> bool:
     """Validate a WebSocket token against the current user record."""
     with SessionLocal() as db:
-        return get_user_for_token(db, token) is not None
+        from app.core.permissions import permissions_for
+        return "realtime.read" in permissions_for(get_user_for_token(db, token))

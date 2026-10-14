@@ -17,14 +17,14 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("rounded-lg border bg-surface", className)}>
+    <section className={cn("min-w-0 rounded-xl border bg-surface shadow-sm", className)}>
       {(title || action) && (
-        <header className="flex h-11 items-center justify-between border-b px-4">
-          <h2 className="text-[13px] font-medium text-foreground">{title}</h2>
+        <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           {action}
         </header>
       )}
-      <div className={cn("p-4", bodyClassName)}>{children}</div>
+      <div className={cn("p-5", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -142,7 +142,7 @@ export function CountDisplay({
           low ? "text-warning" : "text-foreground",
           count === 0 && "text-critical",
         )}
-        title="Verified count — committed to inventory"
+        title="Committed inventory count — may include manual corrections"
       >
         {count}
       </span>
@@ -235,13 +235,13 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-surface/50 px-6 py-16 text-center">
       <div className="grid size-10 place-items-center rounded-md border bg-surface-2">
         <Icon className="size-5 text-muted-foreground" />
       </div>
       <div>
         <p className="text-sm font-medium">{title}</p>
-        <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">{description}</p>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {action}
     </div>
@@ -290,12 +290,14 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>}
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        {description && (
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+        )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

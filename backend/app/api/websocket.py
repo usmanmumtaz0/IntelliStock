@@ -30,6 +30,7 @@ async def websocket_inventory_endpoint(websocket: WebSocket):
         return
 
     await manager.connect(websocket)
+    manager.connection_tokens[websocket] = token
     try:
         while True:
             if not await asyncio.to_thread(validate_websocket_token, token):

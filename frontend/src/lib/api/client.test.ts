@@ -23,6 +23,26 @@ describe("authenticated API client", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not clear a new session when an old request returns 401", async () => {
+    let respond!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            respond = resolve;
+          }),
+      ),
+    );
+    setAccessToken("old-session");
+    const request = apiRequest("/protected");
+    setAccessToken("new-session");
+    respond(new Response(JSON.stringify({ detail: "Expired" }), { status: 401 }));
+    await expect(request).rejects.toMatchObject({ status: 401 });
+    expect(getAccessToken()).toBe("new-session");
+    expect(dispatchEvent).not.toHaveBeenCalled();
+  });
+
   it("attaches the session bearer token and JSON content type", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ saved: true }), {

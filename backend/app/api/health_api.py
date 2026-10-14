@@ -96,7 +96,7 @@ def get_failed_operations(
                 "component": failure.component,
                 "operation": failure.operation,
                 "duration_ms": failure.duration_ms,
-                "error_message": failure.error_message,
+                "error_message": "Operation failed" if failure.error_message else None,
                 "recorded_at": failure.recorded_at.isoformat(),
             }
             for failure in failures

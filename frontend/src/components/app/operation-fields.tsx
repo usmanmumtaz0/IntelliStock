@@ -5,11 +5,11 @@ export function Field({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
-    <label className="grid gap-1 text-xs text-muted-foreground">
+    <label className="grid min-w-0 gap-2 text-xs font-medium text-muted-foreground">
       {label}
       <input
         {...props}
-        className="h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+        className="h-11 w-full rounded-lg border bg-background px-3 text-sm text-foreground transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
     </label>
   );
@@ -31,7 +31,7 @@ export function ActionButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border bg-secondary px-3 py-2 text-xs font-medium hover:bg-accent disabled:opacity-50"
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border bg-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>

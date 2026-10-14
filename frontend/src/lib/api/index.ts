@@ -57,6 +57,7 @@ export const api = {
     apiRequest<Paginated<InventoryHistoryDto>>(
       `/inventory/${encodeURIComponent(zoneId)}/${encodeURIComponent(productId)}/history${queryString({ days, limit: 100 })}`,
     ),
+  inventoryRecord: (id: string) => apiRequest<InventoryDto>(`/inventory/${encodeURIComponent(id)}`),
 
   alerts: (
     filters: {

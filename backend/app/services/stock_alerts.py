@@ -16,16 +16,17 @@ def evaluate_committed_stock(db, payload):
                                         product_id=payload["product_id"]).with_for_update().first()
     if not inv:
         return
-    state = payload.get("status", inv.status.value)
+    # Events are wake-up signals, not authoritative snapshots. Read the locked row.
+    state = inv.status.value
     if state in (InventoryStatus.UNKNOWN.value, InventoryStatus.DETECTION_UNCERTAIN.value,
                  InventoryStatus.CAMERA_OFFLINE.value):
         return
     product = db.get(Product, inv.product_id)
     if not product:
         return
-    quantity = payload.get("quantity", inv.quantity_estimate)
+    quantity = inv.quantity_estimate
     desired = (AlertType.OUT_OF_STOCK if quantity == 0 else
-               AlertType.LOW_STOCK if state == InventoryStatus.LOW_STOCK.value else None)
+               AlertType.LOW_STOCK if quantity <= product.low_stock_threshold else None)
     now = datetime.utcnow()
     alerts = db.query(Alert).filter(Alert.zone_id == inv.zone_id,
         Alert.product_id == inv.product_id, Alert.alert_type.in_(STOCK_TYPES),
@@ -52,7 +53,7 @@ def evaluate_committed_stock(db, payload):
         alert_type=desired, severity=AlertSeverity.HIGH if quantity == 0 else AlertSeverity.MEDIUM,
         status=AlertStatus.OPEN, title="Out of stock" if quantity == 0 else "Low stock",
         current_quantity=quantity, threshold_value=product.low_stock_threshold,
-        confidence=payload.get("confidence", inv.confidence), source_system="committed_inventory",
+        confidence=inv.confidence, source_system="committed_inventory",
         related_event_id=payload.get("event_id"))
     db.add(alert)
     alert_changed(db, alert)

@@ -174,7 +174,7 @@ class TestAlertManagement:
             low_stock_threshold=5,
         )
         
-        updated = service.dismiss_alert(alert.id)
+        updated = service.dismiss_alert(alert.id, "test-actor")
         
         assert updated.status == AlertStatus.DISMISSED
 

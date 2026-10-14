@@ -19,6 +19,7 @@ from app.core.security import (
 from app.core.rate_limiter import enforce_login_rate_limit, enforce_signup_rate_limit
 from app.database import get_db
 from app.models.user import User, UserRole
+from app.core.permissions import permissions_for
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -48,6 +49,7 @@ class LoginResponse(BaseModel):
     username: str
     email: str
     role: str
+    permissions: list[str] = []
 
 
 class SignupRequest(BaseModel):
@@ -96,6 +98,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         username=user.username,
         email=user.email,
         role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        session_version=user.session_version,
     )
 
     logger.info("Successful login for user_id=%s", user.id)
@@ -106,12 +109,18 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         username=user.username,
         email=user.email,
         role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        permissions=sorted(permissions_for(user)),
     )
 
 
 @router.post("/logout")
-async def logout(current_user: User = Depends(get_current_user)):
-    """Invalidate a token by validating it and returning success."""
+async def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Invalidate all existing sessions for this account, including WebSockets."""
+    from app.services.operations import audit
+    account = db.query(User).filter_by(id=current_user.id).populate_existing().with_for_update().one()
+    account.session_version += 1
+    audit(db, account, "logout_all", "session", account.id)
+    db.commit()
     logger.info("Logout for user: %s", current_user.username)
     return {"message": "Successfully logged out", "user_id": current_user.id}
 
@@ -124,6 +133,7 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
         username=current_user.username,
         email=current_user.email,
         role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        session_version=current_user.session_version,
     )
     logger.info("Token refreshed for user: %s", current_user.username)
     return LoginResponse(
@@ -133,6 +143,7 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
         username=current_user.username,
         email=current_user.email,
         role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        permissions=sorted(permissions_for(current_user)),
     )
 
 
@@ -145,4 +156,5 @@ async def verify_token(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "role": current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
         "valid": True,
+        "permissions": sorted(permissions_for(current_user)),
     }

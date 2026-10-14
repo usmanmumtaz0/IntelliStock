@@ -1,7 +1,7 @@
 """
 User model for authentication and authorization.
 """
-from sqlalchemy import Boolean, Column, Enum as SQLEnum, Index, String, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Enum as SQLEnum, Index, Integer, String, UniqueConstraint, func
 from enum import Enum as PyEnum
 
 from app.models.base import BaseModel
@@ -30,6 +30,7 @@ class User(BaseModel):
     role = Column(SQLEnum(UserRole), default=UserRole.STAFF, nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     signup_pending = Column(Boolean, default=False, server_default="false", nullable=False)
+    session_version = Column(Integer, default=0, server_default="0", nullable=False)
 
     def __repr__(self):
         return f"<User {self.username}>"

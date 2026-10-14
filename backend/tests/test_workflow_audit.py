@@ -1,4 +1,4 @@
-"""Audit evidence using disposable databases; known defects await approval to fix."""
+"""Regression tests for approved workflow audit fixes using disposable databases."""
 from unittest.mock import Mock
 import pytest
 from tests.test_operations import ops  # noqa: F401
@@ -22,7 +22,6 @@ def test_manual_correction_status_transitions(client, ops):
         assert result.json()["status"] == expected
 
 
-@pytest.mark.xfail(strict=True, reason="Audit: mail worker does not recheck inventory after restock")
 def test_mail_does_not_send_stale_low_stock_after_restock(mail_data):
     factory, config, _, _ = mail_data
     queue_notifications(factory, config)
@@ -36,7 +35,22 @@ def test_mail_does_not_send_stale_low_stock_after_restock(mail_data):
     sender.assert_not_called()
 
 
-@pytest.mark.xfail(strict=True, reason="Audit: delayed stock payload can create alert against newer adequate inventory")
+def test_mail_defers_uncertain_inventory_without_using_an_attempt(mail_data):
+    from app.models import NotificationDelivery
+    factory, config, _, _ = mail_data
+    queue_notifications(factory, config)
+    with factory() as db:
+        db.query(Inventory).one().status = InventoryStatus.DETECTION_UNCERTAIN
+        db.commit()
+    sender = Mock()
+    deliver_one(factory, config, sender)
+    sender.assert_not_called()
+    with factory() as db:
+        delivery = db.query(NotificationDelivery).first()
+        assert delivery.attempts == 0
+        assert delivery.status == "pending"
+
+
 def test_old_low_stock_event_cannot_reopen_restocked_inventory(mail_data):
     factory, _, _, _ = mail_data
     with factory() as db:

@@ -1,5 +1,6 @@
 # Models package
 from app.models.base import Base, BaseModel
+from app.models.operational_request import OperationalRequest
 from app.models.delivery import OutboxEvent, ZoneProductMapping
 from app.models.notification import NotificationDelivery
 from app.models.chat import ChatConversation, ChatTurn

@@ -301,9 +301,7 @@ function Assistant() {
               maxLength={2000}
               required
               rows={2}
-              placeholder={
-                'Try: Inventory for SKU ABC-123, or History for "Milk" in the last 7 days'
-              }
+              placeholder={'Try: Inventory for "Milk", or its history in the last 7 days'}
               className="max-h-40 min-h-14 w-full resize-y bg-transparent p-1 text-sm leading-6 outline-none disabled:opacity-50"
             />
             <div className="flex items-center justify-between">

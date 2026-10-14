@@ -143,7 +143,7 @@ def test_valid_token_access_and_inactive_user_recheck(client: TestClient, users)
 
 
 def test_role_based_authorization(client: TestClient, users):
-    payload = {"sku": "AUTHZ-001", "name": "Authorization Test Product", "low_stock_threshold": 2, "reorder_point": 5}
+    payload = {"sku": "AUTHZ-001", "name": "Authorization Test Product"}
     assert client.post("/api/v1/products", json=payload, headers=_headers(users["staff"])).status_code == 403
     created = client.post("/api/v1/products", json=payload, headers=_headers(users["manager"]))
     assert created.status_code == 201

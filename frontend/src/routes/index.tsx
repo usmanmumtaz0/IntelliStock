@@ -71,7 +71,7 @@ function AuthPage() {
   };
 
   const field =
-    "h-10 w-full rounded-md border bg-surface px-3 text-[13px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/60";
+    "h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/60";
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
@@ -127,12 +127,12 @@ function AuthPage() {
         </p>
       </div>
 
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
+      <div className="flex items-center justify-center bg-background p-4 sm:p-8">
+        <div className="w-full max-w-md rounded-2xl border bg-surface p-6 shadow-sm sm:p-8">
           <div className="mb-8 lg:hidden">
             <Logo />
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 className="text-2xl font-semibold tracking-tight">
             {signup ? "Request an account" : "Welcome back"}
           </h2>
           <p className="mt-1 text-[13px] text-muted-foreground">

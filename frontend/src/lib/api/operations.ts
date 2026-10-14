@@ -5,11 +5,13 @@ export interface ProductInput {
   sku: string;
   name: string;
   description: string | null;
-  low_stock_threshold: number;
-  reorder_point: number;
+  low_stock_threshold?: number;
+  reorder_point?: number;
 }
 export interface ProductDto extends ProductInput {
   id: string;
+  low_stock_threshold: number;
+  reorder_point: number;
 }
 export interface AccountDto {
   id: string;

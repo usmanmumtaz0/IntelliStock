@@ -61,7 +61,7 @@ def seed(db, admin_email: str) -> dict:
         db.add(camera); db.flush()
         zone = ShelfZone(camera_id=camera.id, name=f"DEMO PK - {section} Shelf",
                          description=MARKER + " Placeholder ROI, not calibrated.",
-                         roi_polygon="[[0,0],[100,0],[100,100],[0,100]]")
+                         roi_polygon="[[0,0],[1,0],[1,1],[0,1]]")
         db.add(zone); db.flush()
         for kind, row in (("camera", camera), ("zone", zone)):
             audit(db, admin, "create_demo", kind, row.id, new={"synthetic": True, "dataset": "pk-demo-v1"})

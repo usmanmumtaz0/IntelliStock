@@ -80,7 +80,7 @@ function Dashboard() {
   const values = metrics.data;
   const kpis = [
     {
-      label: "Total SKUs tracked",
+      label: "Products tracked",
       value: values?.total_skus ?? 0,
       icon: Boxes,
       sub: `across ${zones.data?.length ?? 0} zones`,
@@ -132,12 +132,12 @@ function Dashboard() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
           <Link
             key={kpi.label}
             to={kpi.to}
-            className="group rounded-lg border bg-surface p-4 transition-colors hover:border-primary/40"
+            className="group min-w-0 rounded-xl border bg-surface p-5 shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
           >
             <div className="flex items-center justify-between text-[12px] text-muted-foreground">
               <span>{kpi.label}</span>
@@ -157,7 +157,7 @@ function Dashboard() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_360px]">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <Panel title="Zone status map">
             {zones.data?.length ? (

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <title>IntelliStock</title>
+  <rect width="40" height="40" rx="10" fill="#14b8a6"/>
+  <g transform="translate(8 8)" stroke="#042f2e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2m-10 0H5a2 2 0 0 1-2-2v-2"/>
+    <path d="M7 12s1.5-3 5-3 5 3 5 3-1.5 3-5 3-5-3-5-3Z"/>
+    <circle cx="12" cy="12" r="1" fill="#042f2e" stroke="none"/>
+  </g>
+</svg>

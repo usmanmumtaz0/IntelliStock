@@ -13,6 +13,7 @@ from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.inventory_history import InventoryHistory
 from app.services.outbox import alert_changed
+from app.models.audit_log import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,10 @@ class AlertService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def _audit_action(self, alert, user_id, action, new_status):
+        self.db.add(AuditLog(user_id=user_id, action=action, resource_type="alert", resource_id=alert.id,
+            old_values={"status": alert.status.value}, new_values={"status": new_status.value}))
 
     def _mutable_alert(self, alert_id, target):
         alert = self.db.query(Alert).filter(Alert.id == alert_id).with_for_update().first()
@@ -184,6 +189,7 @@ class AlertService:
         """Mark alert as acknowledged by user."""
         alert = self._mutable_alert(alert_id, AlertStatus.ACKNOWLEDGED)
         if alert:
+            self._audit_action(alert, user_id, "acknowledge", AlertStatus.ACKNOWLEDGED)
             alert.status = AlertStatus.ACKNOWLEDGED
             alert.acknowledged_by_user = user_id
             alert.acknowledged_at = datetime.utcnow()
@@ -197,6 +203,7 @@ class AlertService:
         """Mark alert as resolved."""
         alert = self._mutable_alert(alert_id, AlertStatus.RESOLVED)
         if alert:
+            self._audit_action(alert, user_id, "resolve", AlertStatus.RESOLVED)
             alert.status = AlertStatus.RESOLVED
             alert.resolved_by_user = user_id
             alert.resolved_at = datetime.utcnow()
@@ -207,10 +214,11 @@ class AlertService:
             logger.info(f"Resolved alert {alert_id}")
         return alert
 
-    def dismiss_alert(self, alert_id: str) -> Alert:
+    def dismiss_alert(self, alert_id: str, user_id: str) -> Alert:
         """Dismiss alert (acknowledged but no action needed)."""
         alert = self._mutable_alert(alert_id, AlertStatus.DISMISSED)
         if alert:
+            self._audit_action(alert, user_id, "dismiss", AlertStatus.DISMISSED)
             alert.status = AlertStatus.DISMISSED
             alert.active_key = None
             alert.snoozed_until = None
@@ -238,6 +246,7 @@ class AlertService:
             if alert.status in (AlertStatus.RESOLVED, AlertStatus.DISMISSED, AlertStatus.EXPIRED):
                 raise ValueError("Cannot snooze a closed alert")
             alert.snoozed_until = datetime.utcnow() + timedelta(minutes=minutes)
+            self._audit_action(alert, user_id, "snooze", alert.status)
             alert.acknowledged_by_user = user_id
             alert_changed(self.db, alert)
             self.db.commit()
@@ -305,6 +314,8 @@ class AlertService:
         acknowledged_at = datetime.utcnow()
         for alert in alerts:
             alert.status = AlertStatus.ACKNOWLEDGED
+            self.db.add(AuditLog(user_id=user_id, action="acknowledge", resource_type="alert", resource_id=alert.id,
+                old_values={"status": AlertStatus.OPEN.value}, new_values={"status": AlertStatus.ACKNOWLEDGED.value}))
             alert.acknowledged_by_user = user_id
             alert.acknowledged_at = acknowledged_at
             alert.snoozed_until = None

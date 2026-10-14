@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models.inventory import Inventory, InventoryStatus
 from app.schemas.inventory import InventoryListResponse, InventoryResponse
 from app.services.reconciliation import ReconciliationEngine
-from app.core.security import require_roles
+from app.core.security import get_current_user
 from app.repositories.inventory_repository import InventoryRepository
 from app.services.inventory_contract import serialize_inventory
 
@@ -28,7 +28,7 @@ class CorrectionRequest(BaseModel):
 
 @router.post("/{inventory_id}/corrections", response_model=InventoryResponse)
 def correct_inventory(inventory_id: str, data: CorrectionRequest,
-                      db: Session = Depends(get_db), user=Depends(require_roles("admin", "manager"))):
+                      db: Session = Depends(get_db), user=Depends(get_current_user)):
     from app.services.operations import correct_inventory as apply_correction
     from app.services.observation_window import get_observation_window
     inv = apply_correction(db, inventory_id, data, user)
@@ -104,14 +104,18 @@ def get_low_stock_items(db: Session = Depends(get_db)):
 
 @router.post(
     "/reconcile",
-    dependencies=[Depends(require_roles("admin", "manager"))],
+    dependencies=[Depends(get_current_user)],
 )
 def reconcile_observation(
     request: ReconcileRequest,
     db: Session = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """Test endpoint: reconcile an observation and update inventory state."""
     engine = ReconciliationEngine(db)
+    from app.services.operations import audit
+    audit(db, user, "diagnostic_observation", "inventory", request.product_id,
+          new={"zone_id": request.zone_id, "quantity": request.observed_quantity})
     accepted, reason = engine.reconcile_observation(
         camera_id=request.camera_id,
         zone_id=request.zone_id,
@@ -120,6 +124,7 @@ def reconcile_observation(
         confidence=request.confidence,
     )
 
+    db.commit()
     return {
         "accepted": accepted,
         "reason": reason,

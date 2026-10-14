@@ -8,7 +8,9 @@ from email.utils import formatdate, make_msgid
 from sqlalchemy import exists, or_, cast, String
 from app.core.config import settings
 from app.database import SessionLocal
-from app.models.alert import Alert, AlertStatus
+from app.models.alert import Alert, AlertStatus, AlertType
+from app.models.inventory import Inventory, InventoryStatus
+from app.models.product import Product
 from app.models.notification import NotificationDelivery
 
 STAGES = (AlertStatus.OPEN, AlertStatus.ESCALATED)
@@ -153,6 +155,21 @@ def deliver_one(session_factory=SessionLocal, config=settings, sender=None) -> b
             if alert.snoozed_until and alert.snoozed_until > now:
                 delivery.available_at = alert.snoozed_until
                 return True
+            if alert.alert_type in (AlertType.LOW_STOCK, AlertType.OUT_OF_STOCK):
+                inv = db.query(Inventory).filter_by(zone_id=alert.zone_id, product_id=alert.product_id).with_for_update().first()
+                product = db.get(Product, alert.product_id)
+                if not inv or not product:
+                    delivery.status, delivery.last_error = "cancelled", "Inventory record no longer available"
+                    return True
+                if inv.status in (InventoryStatus.UNKNOWN, InventoryStatus.CAMERA_OFFLINE, InventoryStatus.DETECTION_UNCERTAIN):
+                    delivery.available_at = now + timedelta(seconds=60)
+                    delivery.last_error = "Awaiting reliable current inventory"
+                    return True
+                eligible = (inv.quantity_estimate == 0 if alert.alert_type == AlertType.OUT_OF_STOCK
+                            else 0 < inv.quantity_estimate <= product.low_stock_threshold)
+                if not eligible:
+                    delivery.status, delivery.last_error = "cancelled", "Current inventory no longer matches alert"
+                    return True
             if delivery.attempts >= config.NOTIFICATION_MAX_ATTEMPTS:
                 delivery.status = "failed"
                 return True
