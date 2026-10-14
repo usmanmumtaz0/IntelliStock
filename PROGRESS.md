@@ -2,8 +2,15 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** RBAC Phase 6 automated verification and bounded live smoke checks completed; manual browser/PostgreSQL concurrency acceptance and Redis remain open. WAIT for approval before Phase 7 delivery documentation.
+**Currently On:** User-supplied model staged and CPU smoke-tested; awaiting approval to create its 25 exact catalog products and shelf footage/calibration before activation. RBAC Phase 7 delivery, browser/PostgreSQL concurrency acceptance and Redis remain open.
 **Last Updated:** Oct 14, 2026 | 285 backend tests, 36 frontend tests, runtime reload and read-only smoke checks
+
+### Supplied model preparation (Oct 14, 2026)
+
+- [x] Inspected Downloads/best.pt.zip: it is already a PyTorch checkpoint ZIP, not an outer archive. Copied unchanged to ignored models/best.pt; original preserved. SHA-256: 6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5.
+- [x] Metadata reports detection task, 25 exact Pakistani product labels and training Ultralytics 8.4.177. Current runtime Ultralytics 8.0.207/Torch 2.2.2 loads it and passes one blank-frame prediction plus three blank-frame YOLO/ByteTrack calls on CPU. This is not accuracy or real tracked-object acceptance; no dependency upgrades performed.
+- [x] Set ignored .env CV_MODEL_PATH to the local weights; retained CPU and blank CV_MODEL_MANIFEST to block activation. Created ignored models/model-manifest.draft.json with exact labels/hash and deliberately empty product codes. Verified incomplete mapping is rejected.
+- [ ] Current catalog has generic demo products with different sizes/names, not exact matches for these labels. Need owner choice to create 25 matching products or provide exact mappings. No catalog, shelf, stock or camera mutations made. Need representative shelf video and labelled counts/regions before offline accuracy review and live activation. No live worker started, emails sent, commit or push.
 
 ### Approved RBAC Phase 6 (Oct 14, 2026)
 

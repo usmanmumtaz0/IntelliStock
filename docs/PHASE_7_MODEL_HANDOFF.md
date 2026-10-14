@@ -1,5 +1,29 @@
 # Phase 7: model handoff and offline count evaluation
 
+## Supplied artifact status (2026-10-14)
+
+The user has now supplied `best.pt.zip`; its contents are a PyTorch checkpoint
+container rather than an outer ZIP. It was copied unchanged to ignored
+`models/best.pt`, preserving the original. SHA-256:
+`6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5`.
+
+Embedded metadata lists 25 product-specific classes and Ultralytics 8.4.177.
+Installed Ultralytics 8.0.207 / Torch 2.2.2 successfully loaded the checkpoint and
+ran blank-frame CPU prediction and three YOLO/ByteTrack calls. No real detections,
+count accuracy, tracking stability or training-version equivalence are established.
+
+The ignored root environment now points CV_MODEL_PATH to these weights, but
+CV_MODEL_MANIFEST remains blank. The ignored `models/model-manifest.draft.json`
+contains the exact labels/hash with blank product codes; validation rejects it
+until reviewed mappings are supplied. Existing generic demo catalog products are
+not exact label/size matches. Do not substitute approximate product mappings.
+Approval to create matching catalog entries (or exact existing product mappings),
+shelf footage, labelled counts and camera regions are still needed. No live
+vision worker, catalog update or inventory mutation was performed.
+
+The instructions below describe the remaining handoff procedure; earlier statements
+about no supplied weights are superseded by this status update.
+
 The integration tooling is implemented; **real-model acceptance is pending**.
 No trained weights or shelf footage have been supplied. Nothing in this phase
 trains a model, downloads weights, activates a camera, or proves SKU accuracy.
