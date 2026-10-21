@@ -20,6 +20,7 @@ import { api, ApiError, type InventoryDto } from "@/lib/api";
 import {
   requests,
   requestLabels,
+  canReviewOperationalRequest,
   submissionFromForm,
   type RequestKind,
   type OperationalRequest,
@@ -51,7 +52,7 @@ function statusTone(status: OperationalRequest["status"]) {
 }
 
 function RequestsPage() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const client = useQueryClient();
   const [offset, setOffset] = useState(0);
   const [inventoryOffset, setInventoryOffset] = useState(0);
@@ -60,6 +61,8 @@ function RequestsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | OperationalRequest["status"]>("all");
   const [search, setSearch] = useState("");
   const [formVersion, setFormVersion] = useState(0);
+  const isEscalation = can("requests.escalate");
+  const canCreateRequest = can("requests.submit") || isEscalation;
 
   const rows = useQuery({
     queryKey: ["requests", offset],
@@ -81,7 +84,9 @@ function RequestsPage() {
   const save = useMutation({
     mutationFn: requests.submit,
     onSuccess: async () => {
-      toast.success("Request submitted for review. Inventory has not changed.");
+      toast.success(
+        `Request ${isEscalation ? "escalated to an administrator" : "submitted for review"}. Inventory has not changed.`,
+      );
       setSubmitting(false);
       setFormVersion((version) => version + 1);
       setOffset(0);
@@ -125,9 +130,11 @@ function RequestsPage() {
         eyebrow="Controlled operations"
         icon={ClipboardList}
         description={
-          can("requests.read_all")
-            ? "Review verified counts, discrepancies and replenishment needs without bypassing authoritative inventory controls."
-            : "Report shelf conditions and track decisions through a clear, auditable review workflow."
+          user?.role === "admin"
+            ? "Review staff requests and manager escalations without bypassing authoritative inventory controls."
+            : user?.role === "manager"
+              ? "Review staff requests or escalate an operational decision for administrator approval."
+              : "Report shelf conditions and track decisions through a clear, auditable review workflow."
         }
         meta={
           <>
@@ -148,7 +155,7 @@ function RequestsPage() {
           </>
         }
         actions={
-          can("requests.submit") ? (
+          canCreateRequest ? (
             <button
               onClick={() => {
                 save.reset();
@@ -157,7 +164,7 @@ function RequestsPage() {
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-[12px] font-semibold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
               <Plus className="size-4" />
-              New request
+              {isEscalation ? "Escalate to Admin" : "New request"}
             </button>
           ) : undefined
         }
@@ -166,7 +173,13 @@ function RequestsPage() {
       <RequestWorkflow />
 
       <Panel
-        title={can("requests.read_all") ? "Review queue" : "My requests"}
+        title={
+          user?.role === "admin"
+            ? "Administrator review queue"
+            : user?.role === "manager"
+              ? "Staff queue and my escalations"
+              : "My requests"
+        }
         action={
           <span className="text-xs text-muted-foreground">
             {visibleRows.length} shown · refreshes every 15 seconds
@@ -314,6 +327,7 @@ function RequestsPage() {
         pending={save.isPending}
         error={save.error}
         onSubmit={(input) => save.mutate(input)}
+        escalation={isEscalation}
       />
     </>
   );
@@ -324,7 +338,7 @@ function RequestWorkflow() {
     {
       icon: ClipboardCheck,
       title: "Physical count",
-      copy: "Submit a count you checked in person. Only manager approval can update committed inventory.",
+      copy: "Submit a count you checked in person. Only an authorized independent approval can update committed inventory.",
     },
     {
       icon: AlertTriangle,
@@ -342,8 +356,8 @@ function RequestWorkflow() {
       <div className="mb-4">
         <p className="text-sm font-semibold">How Requests protects inventory</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Requests coordinate work between staff and managers while keeping every decision
-          permission checked and auditable.
+          Requests route Staff work to Managers and Manager escalations to Admins while keeping
+          every decision permission checked and auditable.
         </p>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
@@ -377,6 +391,7 @@ function RequestSubmissionDialog({
   pending,
   error,
   onSubmit,
+  escalation,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -389,6 +404,7 @@ function RequestSubmissionDialog({
   pending: boolean;
   error: Error | null;
   onSubmit: (input: ReturnType<typeof submissionFromForm>) => void;
+  escalation: boolean;
 }) {
   const [kind, setKind] = useState<RequestKind>("physical_count");
   return (
@@ -399,10 +415,12 @@ function RequestSubmissionDialog({
             <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
               <ClipboardList className="size-4" />
             </span>
-            New inventory request
+            {escalation ? "Escalate request to Admin" : "New inventory request"}
           </DialogTitle>
           <DialogDescription>
-            Describe verified shelf work or a condition that needs manager attention.
+            {escalation
+              ? "Send a verified operational decision to an administrator for independent review."
+              : "Describe verified shelf work or a condition that needs manager attention."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -515,7 +533,13 @@ function RequestSubmissionDialog({
                 }
                 className="h-10 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
-                {pending ? "Submitting…" : "Submit for review"}
+                {pending
+                  ? escalation
+                    ? "Escalating…"
+                    : "Submitting…"
+                  : escalation
+                    ? "Escalate to Admin"
+                    : "Submit for review"}
               </button>
             </div>
           </fieldset>
@@ -528,6 +552,8 @@ function RequestSubmissionDialog({
 function RequestCard({ row, name }: { row: OperationalRequest; name: string | undefined }) {
   const { can, user } = useAuth();
   const [reviewing, setReviewing] = useState(false);
+  const canReview = canReviewOperationalRequest(row, user, can("requests.review"));
+
   const icon =
     row.status === "approved" ? CheckCircle2 : row.status === "rejected" ? XCircle : Clock3;
   const StatusIcon = icon;
@@ -545,7 +571,10 @@ function RequestCard({ row, name }: { row: OperationalRequest; name: string | un
             </p>
           </div>
         </div>
-        <Tag tone={statusTone(row.status)}>{row.status}</Tag>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Tag>{row.review_tier === "admin" ? "Admin review" : "Manager review"}</Tag>
+          <Tag tone={statusTone(row.status)}>{row.status}</Tag>
+        </div>
       </div>
 
       <div className="mt-4 rounded-lg bg-surface-2/60 p-3">
@@ -570,7 +599,7 @@ function RequestCard({ row, name }: { row: OperationalRequest; name: string | un
           )}
         </div>
       )}
-      {can("requests.review") && row.status === "pending" && (
+      {canReview && (
         <button
           onClick={() => setReviewing(true)}
           className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-primary/25 bg-primary/[0.05] text-xs font-semibold text-primary hover:bg-primary/10"

@@ -1,4 +1,5 @@
 import { apiRequest, queryString } from "./client";
+import type { AuthUser } from "./types";
 
 export type RequestKind = "physical_count" | "discrepancy" | "restock";
 export interface Submission {
@@ -12,6 +13,7 @@ export interface OperationalRequest extends Omit<Submission, "quantity"> {
   quantity: number | null;
   submitter_id: string;
   status: "pending" | "approved" | "rejected";
+  review_tier: "manager" | "admin";
   reviewer_id: string | null;
   review_reason: string | null;
   reviewed_at: string | null;
@@ -43,6 +45,19 @@ export const requests = {
     apiRequest<RequestActivity[]>(`/operational-audit${queryString({ limit: 50, offset })}`),
 };
 
+export function canReviewOperationalRequest(
+  row: OperationalRequest,
+  user: AuthUser | null,
+  hasReviewPermission: boolean,
+): boolean {
+  return Boolean(
+    hasReviewPermission &&
+    user &&
+    row.status === "pending" &&
+    row.submitter_id !== user.userId &&
+    (user.role === "admin" || row.review_tier === "manager"),
+  );
+}
 export const requestLabels: Record<RequestKind, string> = {
   physical_count: "Physical count",
   discrepancy: "Inventory discrepancy",

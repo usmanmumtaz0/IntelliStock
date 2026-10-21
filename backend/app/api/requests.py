@@ -44,7 +44,7 @@ def scoped(db, user):
 
 def serialize(row):
     return {key: getattr(row, key) for key in ("id", "inventory_id", "submitter_id", "kind", "reason",
-        "quantity", "status", "reviewer_id", "review_reason", "reviewed_at", "created_at", "updated_at")}
+        "quantity", "status", "review_tier", "reviewer_id", "review_reason", "reviewed_at", "created_at", "updated_at")}
 
 
 @router.get("/requests")
@@ -64,10 +64,20 @@ def get_request(request_id: str, db: Session = Depends(get_db), user=Depends(get
 
 @router.post("/requests", status_code=201)
 def submit_request(data: Submission, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    current = db.query(User).filter_by(id=user.id).populate_existing().one()
+    if current.role == "staff":
+        review_tier = "manager"
+        authorize(current, "requests.submit")
+    elif current.role == "manager":
+        review_tier = "admin"
+        authorize(current, "requests.escalate")
+    else:
+        raise HTTPException(403, "Administrators review requests and cannot submit them")
     inventory = db.get(Inventory, data.inventory_id)
     if not inventory:
         raise HTTPException(404, "Inventory not found")
-    row = OperationalRequest(**data.model_dump(), submitter_id=user.id, inventory_version=inventory.updated_at)
+    row = OperationalRequest(**data.model_dump(), submitter_id=current.id,
+        inventory_version=inventory.updated_at, review_tier=review_tier)
     db.add(row)
     db.flush()
     audit(db, user, "submit", "request", row.id, new={"kind": row.kind, "inventory_id": row.inventory_id})
@@ -84,6 +94,10 @@ def review_request(request_id: str, data: Review, db: Session = Depends(get_db),
         raise HTTPException(404, "Request not found")
     if row.status != "pending":
         raise HTTPException(409, "This request was already reviewed")
+    if row.submitter_id == current.id:
+        raise HTTPException(403, "You cannot review your own request")
+    if row.review_tier == "admin" and current.role != "admin":
+        raise HTTPException(403, "Manager escalations require an administrator review")
     if data.decision == "approved" and row.kind == "physical_count":
         authorize(current, "inventory.adjust_stock")
         inv = correct_inventory(db, row.inventory_id, CorrectionRequest(quantity=row.quantity,

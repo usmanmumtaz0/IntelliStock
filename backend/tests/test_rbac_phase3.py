@@ -98,6 +98,55 @@ def test_non_count_requests_never_change_stock_and_are_private(client, ops, kind
         assert db.get(Inventory, ops["inventory"]).quantity_estimate == 5
 
 
+def test_request_submission_tiers_and_independent_review(client, ops):
+    payload = {
+        "inventory_id": ops["inventory"],
+        "kind": "discrepancy",
+        "reason": "Verified mismatch requires independent review",
+    }
+    staff_request = client.post("/api/v1/requests", headers=ops["headers"]["staff"], json=payload)
+    assert staff_request.status_code == 201
+    assert staff_request.json()["review_tier"] == "manager"
+
+    manager_request = client.post("/api/v1/requests", headers=ops["headers"]["manager"], json=payload)
+    assert manager_request.status_code == 201
+    assert manager_request.json()["review_tier"] == "admin"
+
+    assert client.post("/api/v1/requests", headers=ops["headers"]["admin"], json=payload).status_code == 403
+    decision = {"decision": "approved", "reason": "Independently verified request"}
+    manager_url = f"/api/v1/requests/{manager_request.json()['id']}/review"
+    assert client.post(manager_url, headers=ops["headers"]["manager"], json=decision).status_code == 403
+
+    with SessionLocal() as db:
+        other = User(
+            username=uuid4().hex,
+            email=f"{uuid4().hex}@test.local",
+            role="manager",
+            hashed_password="unused",
+        )
+        db.add(other)
+        db.commit()
+        other_headers = {
+            "Authorization": "Bearer "
+            + create_access_token(other.id, other.username, "manager", other.email)
+        }
+    assert client.post(manager_url, headers=other_headers, json=decision).status_code == 403
+    assert client.post(manager_url, headers=ops["headers"]["admin"], json=decision).status_code == 200
+
+    staff_url = f"/api/v1/requests/{staff_request.json()['id']}/review"
+    assert client.post(staff_url, headers=ops["headers"]["manager"], json=decision).status_code == 200
+
+    with SessionLocal() as db:
+        staff_permissions = permissions_for(db.get(User, ops["users"]["staff"]))
+        manager_permissions = permissions_for(db.get(User, ops["users"]["manager"]))
+        admin_permissions = permissions_for(db.get(User, ops["users"]["admin"]))
+    assert {"requests.create", "requests.submit"} <= staff_permissions
+    assert "requests.escalate" not in staff_permissions
+    assert {"requests.create", "requests.escalate", "requests.review"} <= manager_permissions
+    assert "requests.submit" not in manager_permissions
+    assert "requests.create" not in admin_permissions
+    assert "requests.review" in admin_permissions
+
 def test_logout_and_role_change_revoke_tokens(client, ops):
     h = ops["headers"]
     verify = client.get("/api/v1/auth/verify", headers=h["staff"]).json()

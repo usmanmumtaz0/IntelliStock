@@ -2,8 +2,17 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** Video/image upload now fills the desktop workspace when camera capture is unavailable. Authenticated console browser acceptance remains blocked by the existing local API login timeout; licensed DINOv2 SKU references, RBAC Phase 7, PostgreSQL concurrency acceptance and Redis remain open.
-**Last Updated:** Oct 21, 2026 | 315 backend tests, 38 frontend tests, TypeScript, targeted ESLint and production frontend build passed
+**Currently On:** Role-routed operational requests are complete: Staff requests go to Managers, Manager escalations go to Admins, Admins cannot submit, and self-review is denied. Authenticated browser acceptance, licensed DINOv2 SKU references, PostgreSQL concurrency acceptance and Redis remain open.
+**Last Updated:** Oct 21, 2026 | 316 backend tests, 40 frontend tests, TypeScript, lint and production frontend build passed
+
+
+### Role-routed request workflow (Oct 21, 2026)
+
+- [x] Staff requests are server-routed to Manager review; Managers can submit escalations routed to Admin review; Admins remain reviewers and cannot submit operational requests.
+- [x] Enforced independent review: submitters cannot review their own requests, and Managers cannot review Admin-tier escalations. Review tiers are assigned from the authenticated server role rather than trusted client input.
+- [x] Updated the Requests workspace with role-specific actions, queue wording, review-tier labels and review-button visibility while preserving existing request types and inventory correction safeguards.
+- [x] Added the additive `0012_request_escalation` migration plus backend RBAC and frontend workflow regression coverage.
+- Verification: full backend suite passed 316 tests; full frontend suite passed 40 tests; TypeScript and production build passed; ESLint has 0 errors and 10 existing Fast Refresh warnings. Focused request/migration coverage also passed.
 
 
 ### Video/image upload workspace width (Oct 21, 2026)

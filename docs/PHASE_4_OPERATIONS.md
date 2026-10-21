@@ -38,6 +38,16 @@ Open the desired inventory record and enter the physical count and a reason. The
 
 One transaction writes quantity/state, immutable correction history with actor/reason, an audit log, and a durable stock event. No camera observation or confidence is fabricated. The record is not camera-verified again until subsequent reconciliation. A correction is **not a permanent override**: later reconciled observations may replace it. Stop/disable faulty vision ingestion before correcting counts if you do not want immediate camera updates.
 
+## Request review workflow
+
+- Staff submit operational requests for Manager review.
+- Managers can review Staff requests and can submit escalations for Admin review.
+- Admins review requests but cannot create them.
+- A submitter cannot review their own request. Manager escalations therefore require a different Admin reviewer.
+- The server assigns the review tier from the authenticated role; clients cannot choose or override it.
+
+Approval retains the existing request behavior. Approved physical-count requests use the guarded inventory-correction transaction; discrepancy and restock approvals record the decision without silently changing inventory.
+
 The console flags observations older than 60 seconds or missing/invalid timestamps. This visual freshness warning does not erase committed stock. Offline and uncertain states remain visible. Modification time and observation time are intentionally different.
 
 ## API additions

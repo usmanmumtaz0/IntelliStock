@@ -4,18 +4,23 @@ from app.core.security import get_current_user
 import logging
 
 READ = frozenset({"inventory.read", "products.read", "alerts.read", "shelves.read",
-    "cameras.read", "reports.read", "activity.read", "requests.submit", "requests.read_own",
+    "cameras.read", "reports.read", "activity.read", "requests.read_own",
     "audit.read_own", "chatbot.use", "chatbot.inventory.read", "chatbot.alerts.read",
     "chatbot.analytics.read", "realtime.read", "video_jobs.read", "video_jobs.create"})
+STAFF_REQUESTS = frozenset({"requests.create", "requests.submit"})
 OPERATIONS = frozenset({"inventory.adjust_stock", "products.create", "products.update",
     "alerts.acknowledge", "alerts.resolve", "alerts.snooze", "alerts.dismiss", "reports.export",
     "requests.review", "requests.read_all", "audit.read_operational", "video_jobs.review"})
+MANAGER_REQUESTS = frozenset({"requests.create", "requests.escalate"})
 ADMIN = frozenset({"products.delete", "thresholds.manage", "cameras.manage", "shelves.manage",
     "users.read", "users.create", "users.update", "roles.manage", "audit.read_all",
     "settings.read", "diagnostics.read", "diagnostics.observe", "video_jobs.camera",
     "video_jobs.read_all"})
-ROLE_PERMISSIONS = {"staff": READ, "manager": READ | OPERATIONS, "admin": READ | OPERATIONS | ADMIN}
-
+ROLE_PERMISSIONS = {
+    "staff": READ | STAFF_REQUESTS,
+    "manager": READ | OPERATIONS | MANAGER_REQUESTS,
+    "admin": READ | OPERATIONS | ADMIN,
+}
 
 def permissions_for(user):
     if not user or not user.is_active or user.signup_pending:
@@ -83,7 +88,7 @@ register("GET", "chatbot.use", "/chat/status", "/chat/conversations", "/chat/con
 register("POST", "chatbot.use", "/chat/conversations", "/chat/conversations/{conversation_id}/turns")
 register("DELETE", "chatbot.use", "/chat/conversations/{conversation_id}")
 register("GET", "requests.read_own", "/requests", "/requests/{request_id}")
-register("POST", "requests.submit", "/requests")
+register("POST", "requests.create", "/requests")
 register("POST", "requests.review", "/requests/{request_id}/review")
 register("GET", "video_jobs.read", "/video-jobs", "/video-jobs/{job_id}",
     "/video-jobs/{job_id}/frames", "/video-jobs/{job_id}/frames/{frame_id}/image",
