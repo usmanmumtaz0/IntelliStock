@@ -1,7 +1,14 @@
 import { useMemo } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search, PackageSearch } from "lucide-react";
+import {
+  Search,
+  PackageSearch,
+  PackageCheck,
+  Boxes,
+  ShieldCheck,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, type InventoryDto } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -88,12 +95,37 @@ function Inventory() {
     { verified: 0, pending: 0, flagged: 0 },
   );
   const zoneName = new Map(zones.data?.map((zone) => [zone.id, zone.name]));
+  const totalUnits = (inventory.data ?? []).reduce(
+    (total, item) => total + item.current_quantity,
+    0,
+  );
 
   return (
     <>
       <PageHeader
         title="Inventory"
-        description="Review inventory, check shelf availability and record physical counts. Camera verification is shown separately."
+        eyebrow="Inventory control"
+        icon={PackageCheck}
+        description="Review trusted stock, investigate exceptions and record physical counts from one operational workspace."
+        meta={
+          <>
+            <span className="console-stat-pill">
+              <Boxes className="size-3 text-primary" />{" "}
+              <strong>{inventory.data?.length ?? 0}</strong> products
+            </span>
+            <span className="console-stat-pill">
+              <strong>{totalUnits}</strong> committed units
+            </span>
+            <span className="console-stat-pill">
+              <ShieldCheck className="size-3 text-healthy" /> <strong>{counts.verified}</strong>{" "}
+              verified
+            </span>
+            <span className="console-stat-pill">
+              <AlertTriangle className="size-3 text-warning" />
+              <strong>{counts.flagged + counts.pending}</strong> need review
+            </span>
+          </>
+        }
       />
       {inventory.error && (
         <p
@@ -103,8 +135,8 @@ function Inventory() {
           {inventory.error.message}
         </p>
       )}
-      <div className="console-toolbar">
-        <div className="flex h-10 w-full items-center gap-2 rounded-lg border bg-background px-3 sm:w-64">
+      <div className="console-toolbar shadow-sm">
+        <div className="flex h-10 w-full items-center gap-2 rounded-xl border bg-background/70 px-3.5 transition-all focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 sm:w-72">
           <Search className="size-3.5 text-muted-foreground" />
           <input
             value={search.q ?? ""}
@@ -118,7 +150,7 @@ function Inventory() {
           aria-label="Filter inventory by shelf zone"
           value={search.zone ?? ""}
           onChange={(event) => setSearch({ zone: event.target.value || undefined, sku: undefined })}
-          className="h-8 rounded-md border bg-surface px-2 text-[12px] outline-none"
+          className="h-10 rounded-xl border bg-surface px-3 text-[12px] outline-none focus:border-primary/50"
         >
           <option value="">All zones</option>
           {zones.data?.map((zone) => (
@@ -127,14 +159,16 @@ function Inventory() {
             </option>
           ))}
         </select>
-        <div className="flex rounded-md border p-0.5 text-[12px]">
+        <div className="flex max-w-full overflow-x-auto rounded-xl border bg-background/50 p-1 text-[12px]">
           {([undefined, "verified", "pending", "flagged"] as const).map((status) => (
             <button
               key={status ?? "all"}
               onClick={() => setSearch({ status })}
               className={cn(
-                "min-h-9 rounded px-2.5 capitalize",
-                search.status === status ? "bg-secondary font-medium" : "text-muted-foreground",
+                "min-h-8 rounded-lg px-3 capitalize transition-colors",
+                search.status === status
+                  ? "bg-surface font-medium text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {status ?? "All"}

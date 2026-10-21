@@ -5,6 +5,12 @@ export interface ProductInput {
   sku: string;
   name: string;
   description: string | null;
+  brand?: string | null;
+  category?: string | null;
+  variant?: string | null;
+  package_size?: string | null;
+  barcode?: string | null;
+  reference_images?: string[] | null;
   low_stock_threshold?: number;
   reorder_point?: number;
 }

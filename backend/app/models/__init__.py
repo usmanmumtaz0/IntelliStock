@@ -15,6 +15,13 @@ from app.models.audit_log import AuditLog
 from app.models.inventory_history import InventoryHistory, InventoryChangeType
 from app.models.alert import Alert, AlertType, AlertSeverity, AlertStatus
 from app.models.system_health import SystemHealthMetric, PerformanceLog, ComponentStatus, HealthCheckType
+from app.models.video_job import (
+    VideoDetection,
+    VideoFrame,
+    VideoJobStatus,
+    VideoProcessingJob,
+    VideoSourceKind,
+)
 
 __all__ = [
     "Base",
@@ -40,5 +47,10 @@ __all__ = [
     "PerformanceLog",
     "ComponentStatus",
     "HealthCheckType",
+    "VideoProcessingJob",
+    "VideoFrame",
+    "VideoDetection",
+    "VideoJobStatus",
+    "VideoSourceKind",
 ]
 

@@ -15,7 +15,8 @@ def test_privacy_migration_covers_every_backend_table():
     from app.models import Base
     migration = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/0007_backend_table_privacy.py"))
     requests = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/0008_rbac_requests_sessions.py"))
-    assert set(migration["TABLES"]) | set(requests["PROTECTED_TABLES"]) == set(Base.metadata.tables) | {"alembic_version"}
+    videos = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/0009_video_processing_jobs.py"))
+    assert set(migration["TABLES"]) | set(requests["PROTECTED_TABLES"]) | set(videos["TABLES"]) == set(Base.metadata.tables) | {"alembic_version"}
 
 
 def _index_exists(engine) -> bool:
@@ -86,6 +87,12 @@ def test_migration_upgrade_and_incremental_downgrade(tmp_path: Path):
         assert "users" in inspect(engine).get_table_names()
         assert "signup_pending" in {column["name"] for column in inspect(engine).get_columns("users")}
         assert _index_exists(engine)
+        assert {"brand", "category", "barcode", "reference_images"} <= {
+            column["name"] for column in inspect(engine).get_columns("products")
+        }
+        assert {"identity_status", "identity_confidence", "identity_evidence"} <= {
+            column["name"] for column in inspect(engine).get_columns("video_detections")
+        }
 
         command.downgrade(config, "0001_existing_schema_baseline")
         assert not _index_exists(engine)

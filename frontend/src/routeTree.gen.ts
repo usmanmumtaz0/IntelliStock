@@ -20,6 +20,7 @@ import { Route as ConsoleReportsRouteImport } from './routes/_console.reports'
 import { Route as ConsoleRequestsRouteImport } from './routes/_console.requests'
 import { Route as ConsoleSettingsRouteImport } from './routes/_console.settings'
 import { Route as ConsoleShelvesRouteImport } from './routes/_console.shelves'
+import { Route as ConsoleVideoProcessingRouteImport } from './routes/_console.video-processing'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -75,6 +76,11 @@ const ConsoleShelvesRoute = ConsoleShelvesRouteImport.update({
   path: '/shelves',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleVideoProcessingRoute = ConsoleVideoProcessingRouteImport.update({
+  id: '/video-processing',
+  path: '/video-processing',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/requests': typeof ConsoleRequestsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
+  '/video-processing': typeof ConsoleVideoProcessingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/requests': typeof ConsoleRequestsRoute
   '/settings': typeof ConsoleSettingsRoute
   '/shelves': typeof ConsoleShelvesRoute
+  '/video-processing': typeof ConsoleVideoProcessingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/_console/requests': typeof ConsoleRequestsRoute
   '/_console/settings': typeof ConsoleSettingsRoute
   '/_console/shelves': typeof ConsoleShelvesRoute
+  '/_console/video-processing': typeof ConsoleVideoProcessingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/shelves'
+    | '/video-processing'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/shelves'
+    | '/video-processing'
   id:
     | '__root__'
     | '/'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/_console/requests'
     | '/_console/settings'
     | '/_console/shelves'
+    | '/_console/video-processing'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsoleShelvesRouteImport
       parentRoute: typeof ConsoleRoute
     }
+    '/_console/video-processing': {
+      id: '/_console/video-processing'
+      path: '/video-processing'
+      fullPath: '/video-processing'
+      preLoaderRoute: typeof ConsoleVideoProcessingRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
   }
 }
 
@@ -251,6 +270,7 @@ interface ConsoleRouteChildren {
   ConsoleRequestsRoute: typeof ConsoleRequestsRoute
   ConsoleSettingsRoute: typeof ConsoleSettingsRoute
   ConsoleShelvesRoute: typeof ConsoleShelvesRoute
+  ConsoleVideoProcessingRoute: typeof ConsoleVideoProcessingRoute
 }
 
 const ConsoleRouteChildren: ConsoleRouteChildren = {
@@ -263,6 +283,7 @@ const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleRequestsRoute: ConsoleRequestsRoute,
   ConsoleSettingsRoute: ConsoleSettingsRoute,
   ConsoleShelvesRoute: ConsoleShelvesRoute,
+  ConsoleVideoProcessingRoute: ConsoleVideoProcessingRoute,
 }
 
 const ConsoleRouteWithChildren =

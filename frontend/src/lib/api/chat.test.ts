@@ -23,6 +23,10 @@ describe("assistant contracts", () => {
     expect(safeSourceHref("/inventory?record=123")).toBe("/inventory?record=123");
     expect(safeSourceHref("/alerts")).toBe("/alerts");
     expect(safeSourceHref("/reports")).toBe("/reports");
+    expect(safeSourceHref("/shelves")).toBe("/shelves");
+    expect(safeSourceHref("/requests")).toBe("/requests");
+    expect(safeSourceHref("/agent-activity")).toBe("/agent-activity");
+    expect(safeSourceHref("/settings")).toBe("/settings");
     for (const href of [
       "javascript:alert(1)",
       "https://example.com",

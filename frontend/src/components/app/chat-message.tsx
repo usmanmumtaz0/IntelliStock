@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Sparkles } from "lucide-react";
+import { ArrowUpRight, Copy, Database, Sparkles } from "lucide-react";
 import { safeSourceHref, type ChatTurn } from "@/lib/api/chat";
 
 export function ChatMessage({ turn }: { turn: ChatTurn }) {
@@ -16,7 +16,7 @@ export function ChatMessage({ turn }: { turn: ChatTurn }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="mb-2 text-sm font-semibold">IntelliStock</p>
-          <p className="whitespace-pre-wrap break-words text-sm leading-7">{turn.answer}</p>
+          <AssistantAnswer answer={turn.answer} />
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Answer sources">
             {turn.sources.map((source) => {
               const href = safeSourceHref(source.href);
@@ -24,9 +24,13 @@ export function ChatMessage({ turn }: { turn: ChatTurn }) {
                 <a
                   key={`${source.kind}-${source.id}`}
                   href={href}
-                  className="max-w-full break-words rounded-lg border px-3 py-2 text-xs text-primary hover:bg-accent"
+                  className="group max-w-full break-words rounded-xl border bg-surface/70 px-3.5 py-3 text-xs text-primary transition-colors hover:border-primary/35 hover:bg-primary/[0.04]"
                 >
-                  <span className="block font-medium">{source.label}</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    <Database className="size-3.5" />
+                    {source.label}
+                    <ArrowUpRight className="ml-auto size-3 opacity-50 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </span>
                   <span className="block text-muted-foreground">
                     Source: {source.kind === "aggregate" ? "inventory summary" : source.kind}
                     {source.sku ? ` · Product code: ${source.sku}` : ""}
@@ -82,5 +86,43 @@ export function ChatMessage({ turn }: { turn: ChatTurn }) {
         </div>
       </div>
     </article>
+  );
+}
+
+function AssistantAnswer({ answer }: { answer: string }) {
+  return (
+    <div className="space-y-2 text-sm leading-7">
+      {answer.split("\n").map((line, index) => {
+        const key = `${index}-${line.slice(0, 24)}`;
+        if (!line.trim()) return <div key={key} className="h-1" aria-hidden="true" />;
+        if (line.startsWith("## "))
+          return (
+            <h3 key={key} className="pt-1 text-lg font-semibold tracking-tight first:pt-0">
+              {line.slice(3)}
+            </h3>
+          );
+        if (line.startsWith("### "))
+          return (
+            <h4
+              key={key}
+              className="pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+            >
+              {line.slice(4)}
+            </h4>
+          );
+        if (line.startsWith("- "))
+          return (
+            <div key={key} className="flex gap-2.5 pl-1">
+              <span className="mt-[11px] size-1.5 shrink-0 rounded-full bg-primary" />
+              <span>{line.slice(2)}</span>
+            </div>
+          );
+        return (
+          <p key={key} className="whitespace-pre-wrap break-words">
+            {line}
+          </p>
+        );
+      })}
+    </div>
   );
 }

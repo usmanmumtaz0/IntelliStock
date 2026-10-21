@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Plus, Send, Trash2, Sparkles, Search, Loader2 } from "lucide-react";
+import {
+  MessageSquare,
+  Plus,
+  Send,
+  Trash2,
+  Sparkles,
+  Search,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import { chat } from "@/lib/api/chat";
 import { useAuth } from "@/lib/auth";
 import { PageHeader, Tag } from "@/components/app/primitives";
@@ -72,18 +81,44 @@ function Assistant() {
     bottom.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
   }, [selected, history.data?.turns.length, send.isPending]);
   const full = (history.data?.turns.length ?? 0) >= (status.data?.max_turns ?? 100);
+  const capabilities = status.data?.capabilities ?? [];
+  const examples = [
+    ...(capabilities.includes("operations") ? ["Give me an operations brief"] : []),
+    capabilities.includes("operations") ? "Show low-stock priorities" : "Show low stock",
+    ...(capabilities.includes("cameras") ? ["Show camera and shelf status"] : []),
+    ...(capabilities.includes("requests") ? ["Show the pending request queue"] : []),
+    ...(capabilities.includes("activity") ? ["Show agent activity for the last 7 days"] : []),
+    ...(capabilities.includes("accounts") ? ["Show the account overview"] : []),
+    ...(capabilities.includes("system") ? ["Show system diagnostics"] : []),
+  ].slice(0, 6);
   return (
     <>
       <PageHeader
-        title="Inventory assistant"
-        description="Ask about your stock. Read-only answers with database source references."
+        title="Operations assistant"
+        description="Role-aware answers across inventory, alerts, cameras, requests, activity and administration, grounded in current system records."
         actions={
-          <Tag tone="primary">
-            <MessageSquare className="size-3" />
-            Read only
-          </Tag>
+          <div className="flex items-center gap-2">
+            <Tag tone="primary" className="capitalize">
+              <ShieldCheck className="size-3" />
+              {status.data?.role ?? user?.role} access
+            </Tag>
+            <Tag>
+              <MessageSquare className="size-3" />
+              Read only
+            </Tag>
+          </div>
         }
       />
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-surface/70 px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Available to you
+        </span>
+        {capabilities.map((capability) => (
+          <Tag key={capability} tone="primary" className="capitalize">
+            {capability.replaceAll("_", " ")}
+          </Tag>
+        ))}
+      </div>
       <details className="mb-4 rounded-lg border px-4 py-2 text-xs text-muted-foreground">
         <summary className="cursor-pointer">Privacy, saved history & AI configuration</summary>
         <p className="mb-1 font-medium text-foreground">
@@ -206,11 +241,11 @@ function Assistant() {
               <div className="mx-auto max-w-xl py-6">
                 <Sparkles className="mb-4 size-8 text-primary" />
                 <h2 className="text-2xl font-semibold tracking-tight">
-                  What’s happening on your shelves?
+                  How can I help with operations?
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  Explore stock, alerts and recent changes with answers grounded in your inventory
-                  records.
+                  Ask for a concise brief, investigate a problem, or review any area available to
+                  your {status.data?.role ?? user?.role} account.
                 </p>
                 {!selected && (
                   <p className="mt-3 text-xs text-muted-foreground">
@@ -218,12 +253,7 @@ function Assistant() {
                   </p>
                 )}
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {[
-                    "Inventory summary",
-                    "Show low stock",
-                    "Show active alerts",
-                    "Show history for the last 7 days",
-                  ].map((example) => (
+                  {examples.map((example) => (
                     <button
                       type="button"
                       key={example}
@@ -301,7 +331,7 @@ function Assistant() {
               maxLength={2000}
               required
               rows={2}
-              placeholder={'Try: Inventory for "Milk", or its history in the last 7 days'}
+              placeholder="Ask for an operations brief, priorities, or details about a product"
               className="max-h-40 min-h-14 w-full resize-y bg-transparent p-1 text-sm leading-6 outline-none disabled:opacity-50"
             />
             <div className="flex items-center justify-between">

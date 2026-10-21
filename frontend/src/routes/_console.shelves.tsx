@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CameraOff, Cctv, Plus, Trash2, Power } from "lucide-react";
+import { CameraOff, Cctv, Plus, Trash2, Power, Layers3, Radio, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api, type CameraDto, type CameraInput } from "@/lib/api";
@@ -131,35 +131,64 @@ function Shelves() {
   });
   const cameraZones = (cameraId: string) =>
     (zones.data ?? []).filter((zone) => zone.camera_id === cameraId);
+  const activeCameras = cameras.data?.filter((camera) => camera.is_active).length ?? 0;
+  const totalCameras = cameras.data?.length ?? 0;
 
   return (
     <>
       <PageHeader
         title="Shelves & cameras"
-        description={`${cameras.data?.filter((camera) => camera.is_active).length ?? 0} of ${cameras.data?.length ?? 0} cameras enabled`}
+        eyebrow="Visual inventory network"
+        icon={Cctv}
+        description="Manage camera coverage, shelf zones and the visual inputs that support inventory verification."
+        meta={
+          <>
+            <span className="console-stat-pill">
+              <Radio className="size-3 text-healthy" /> <strong>{activeCameras}</strong> enabled
+            </span>
+            <span className="console-stat-pill">
+              <strong>{Math.max(0, totalCameras - activeCameras)}</strong> disabled
+            </span>
+            <span className="console-stat-pill">
+              <Layers3 className="size-3 text-primary" /> <strong>{zones.data?.length ?? 0}</strong>{" "}
+              shelf zones
+            </span>
+            <span className="console-stat-pill">
+              <ShieldCheck className="size-3 text-primary" /> Configuration secured
+            </span>
+          </>
+        }
         actions={
           canWrite ? (
             <button
               onClick={() => setAdding(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-[12px] font-semibold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
-              <Plus className="size-3.5" />
+              <Plus className="size-4" />
               Add camera
             </button>
           ) : undefined
         }
       />
-      <p className="mb-4 rounded-md border bg-surface-2 p-3 text-[12px] text-muted-foreground">
-        The backend currently reports camera configuration state. Runtime heartbeat, live FPS and
-        video snapshots will appear here when telemetry endpoints are added.
-      </p>
+      <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary/15 bg-primary/[0.05] p-3 text-[12px] text-muted-foreground">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Cctv className="size-4" />
+        </span>
+        <div>
+          <p className="font-medium text-foreground">Configuration monitoring</p>
+          <p className="mt-1 leading-5">
+            Camera cards show configured state and shelf coverage. Runtime heartbeat, live FPS and
+            snapshots will appear when telemetry endpoints are connected.
+          </p>
+        </div>
+      </div>
       {cameras.error && (
         <p role="alert" className="mb-4 text-[12px] text-critical">
           {cameras.error.message}
         </p>
       )}
       {cameras.isLoading ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="rounded-lg border p-4">
               <SkeletonRow />
@@ -168,28 +197,36 @@ function Shelves() {
           ))}
         </div>
       ) : cameras.data?.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {cameras.data.map((camera) => {
             const linkedZones = cameraZones(camera.id);
             return (
               <button
                 key={camera.id}
                 onClick={() => setSelected(camera)}
-                className="min-w-0 rounded-xl border bg-surface p-4 text-left shadow-sm transition-colors hover:border-primary/50"
+                className="group min-w-0 rounded-xl border bg-surface p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
                 <CameraPreview camera={camera} zones={linkedZones.map((zone) => zone.name)} />
-                <div className="mt-2.5 flex items-start justify-between gap-2">
+                <div className="mt-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium">{camera.name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{camera.location}</p>
+                    <p className="truncate text-sm font-semibold transition-colors group-hover:text-primary">
+                      {camera.name}
+                    </p>
+                    <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                      {camera.location}
+                    </p>
                   </div>
                   <Tag tone={camera.is_active ? "healthy" : "critical"}>
                     {camera.is_active ? "Enabled" : "Disabled"}
                   </Tag>
                 </div>
-                <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                  {linkedZones.map((zone) => zone.name).join(" · ") || "No zones"}
-                </p>
+                <div className="mt-3 flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-1.5 truncate font-mono">
+                    <Layers3 className="size-3 shrink-0 text-primary" />
+                    {linkedZones.map((zone) => zone.name).join(" · ") || "No zones assigned"}
+                  </span>
+                  <span className="shrink-0 font-mono">{camera.fps} FPS</span>
+                </div>
               </button>
             );
           })}
@@ -361,8 +398,8 @@ function CameraDialog({
             <input name="location" required className={field} />
           </label>
           <label className="block space-y-1 text-[12px]">
-            <span>RTSP/HTTP source</span>
-            <input name="source_url" className={field} />
+            <span>Webcam, RTSP, or HTTP source</span>
+            <input name="source_url" placeholder="webcam://0 or rtsp://…" className={field} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1 text-[12px]">

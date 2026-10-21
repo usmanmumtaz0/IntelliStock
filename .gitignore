@@ -17,9 +17,15 @@ replay-zones.local.json
 /models/*
 !/models/best.pt
 !/models/model-manifest.draft.json
+!/models/model-manifest.json
 !/models/README.md
 /runs/
 /backend/runs/
+/backend/media/
+*-dev.out.log
+*-dev.err.log
+/video-worker.*.log
+/backend/video-worker.*.log
 /cv/models/
 backend/.env
 frontend/.env

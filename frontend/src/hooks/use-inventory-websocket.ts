@@ -32,6 +32,8 @@ export function useInventoryWebSocket(): ConnectionState {
         queryClient.invalidateQueries({ queryKey: queryKeys.alerts }),
         queryClient.invalidateQueries({ queryKey: queryKeys.alertStats }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cameras }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.videoJobs }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.detectionReview }),
         queryClient.invalidateQueries({ queryKey: ["products"] }),
       ]);
     };

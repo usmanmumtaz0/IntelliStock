@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "samples": [
+    {
+      "image": "../datasets/test/example.jpg",
+      "detections": [
+        {
+          "class_id": 12,
+          "bbox": [0.1, 0.2, 0.8, 0.9]
+        }
+      ],
+      "expected_sku": null,
+      "expected_identity_status": "category_only"
+    }
+  ]
+}

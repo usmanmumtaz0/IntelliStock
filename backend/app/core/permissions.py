@@ -6,13 +6,14 @@ import logging
 READ = frozenset({"inventory.read", "products.read", "alerts.read", "shelves.read",
     "cameras.read", "reports.read", "activity.read", "requests.submit", "requests.read_own",
     "audit.read_own", "chatbot.use", "chatbot.inventory.read", "chatbot.alerts.read",
-    "chatbot.analytics.read", "realtime.read"})
+    "chatbot.analytics.read", "realtime.read", "video_jobs.read", "video_jobs.create"})
 OPERATIONS = frozenset({"inventory.adjust_stock", "products.create", "products.update",
     "alerts.acknowledge", "alerts.resolve", "alerts.snooze", "alerts.dismiss", "reports.export",
-    "requests.review", "requests.read_all", "audit.read_operational"})
+    "requests.review", "requests.read_all", "audit.read_operational", "video_jobs.review"})
 ADMIN = frozenset({"products.delete", "thresholds.manage", "cameras.manage", "shelves.manage",
     "users.read", "users.create", "users.update", "roles.manage", "audit.read_all",
-    "settings.read", "diagnostics.read", "diagnostics.observe"})
+    "settings.read", "diagnostics.read", "diagnostics.observe", "video_jobs.camera",
+    "video_jobs.read_all"})
 ROLE_PERMISSIONS = {"staff": READ, "manager": READ | OPERATIONS, "admin": READ | OPERATIONS | ADMIN}
 
 
@@ -84,6 +85,13 @@ register("DELETE", "chatbot.use", "/chat/conversations/{conversation_id}")
 register("GET", "requests.read_own", "/requests", "/requests/{request_id}")
 register("POST", "requests.submit", "/requests")
 register("POST", "requests.review", "/requests/{request_id}/review")
+register("GET", "video_jobs.read", "/video-jobs", "/video-jobs/{job_id}",
+    "/video-jobs/{job_id}/frames", "/video-jobs/{job_id}/frames/{frame_id}/image",
+    "/video-jobs/model-health", "/video-jobs/review-queue")
+register("POST", "video_jobs.create", "/video-jobs", "/video-jobs/images",
+    "/video-jobs/{job_id}/cancel")
+register("POST", "video_jobs.camera", "/video-jobs/cameras/{camera_id}")
+register("POST", "video_jobs.review", "/video-jobs/detections/{detection_id}/identify")
 
 
 def enforce_route_permission(request: Request, user=Depends(get_current_user)):

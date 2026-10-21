@@ -12,6 +12,8 @@ class AlertBase(BaseModel):
     severity: str
     title: str
     current_quantity: int
+    threshold_value: Optional[int] = None
+    threshold_type: Optional[str] = None
     description: Optional[str] = None
     recommendation: Optional[str] = None
 
@@ -52,7 +54,7 @@ class AlertResponse(AlertBase):
 class AlertPaginationResponse(BaseModel):
     """Paginated alerts response."""
     data: List[AlertResponse]
-    pagination: dict  # {total, limit, offset, pages}
+    pagination: dict
 
     class Config:
         from_attributes = True
@@ -60,7 +62,6 @@ class AlertPaginationResponse(BaseModel):
 
 class AlertActionResponse(BaseModel):
     """Result of a persistent alert lifecycle mutation."""
-
     status: str
     alert_id: Optional[str] = None
     affected: int = 1

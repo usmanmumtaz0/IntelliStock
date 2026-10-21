@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "model_version": "pakistani-products-yolov8s-metadata-reviewed",
+  "sha256": "6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5",
+  "task": "detect",
+  "classes": [
+    {
+      "class_id": 0,
+      "label": "Bisconni Chocolate Chip Cookies 46.8gm",
+      "sku": ""
+    },
+    {
+      "class_id": 1,
+      "label": "Coca Cola Can 250ml",
+      "sku": ""
+    },
+    {
+      "class_id": 2,
+      "label": "Colgate Maximum Cavity Protection 75gm",
+      "sku": ""
+    },
+    {
+      "class_id": 3,
+      "label": "Fanta 500ml",
+      "sku": ""
+    },
+    {
+      "class_id": 4,
+      "label": "Fresher Guava Nectar 500ml",
+      "sku": ""
+    },
+    {
+      "class_id": 5,
+      "label": "Fruita Vitals Red Grapes 200ml",
+      "sku": ""
+    },
+    {
+      "class_id": 6,
+      "label": "Islamabad Tea 238gm",
+      "sku": ""
+    },
+    {
+      "class_id": 7,
+      "label": "Kolson Slanty Jalapeno 18gm",
+      "sku": ""
+    },
+    {
+      "class_id": 8,
+      "label": "Kurkure Chutney Chaska 62gm",
+      "sku": ""
+    },
+    {
+      "class_id": 9,
+      "label": "LU Candi Biscuit 60gm",
+      "sku": ""
+    },
+    {
+      "class_id": 10,
+      "label": "LU Oreo Biscuit 19gm",
+      "sku": ""
+    },
+    {
+      "class_id": 11,
+      "label": "LU Prince Biscuit 55.2gm",
+      "sku": ""
+    },
+    {
+      "class_id": 12,
+      "label": "Lays Masala 34gm",
+      "sku": ""
+    },
+    {
+      "class_id": 13,
+      "label": "Lays Wavy Mexican Chili 34gm",
+      "sku": ""
+    },
+    {
+      "class_id": 14,
+      "label": "Lifebuoy Total Protect Soap 96gm",
+      "sku": ""
+    },
+    {
+      "class_id": 15,
+      "label": "Lipton Yellow Label Tea 95gm",
+      "sku": ""
+    },
+    {
+      "class_id": 16,
+      "label": "Meezan Ultra Rich Tea 190gm",
+      "sku": ""
+    },
+    {
+      "class_id": 17,
+      "label": "Peek Freans Sooper Biscuit 13.2gm",
+      "sku": ""
+    },
+    {
+      "class_id": 18,
+      "label": "Safeguard Bar Soap Pure White 175gm",
+      "sku": ""
+    },
+    {
+      "class_id": 19,
+      "label": "Shezan Apple 250ml",
+      "sku": ""
+    },
+    {
+      "class_id": 20,
+      "label": "Sunsilk Shampoo Soft - Smooth 160ml",
+      "sku": ""
+    },
+    {
+      "class_id": 21,
+      "label": "Super Crisp BBQ 30gm",
+      "sku": ""
+    },
+    {
+      "class_id": 22,
+      "label": "Supreme Tea 95gm",
+      "sku": ""
+    },
+    {
+      "class_id": 23,
+      "label": "Tapal Danedar 95gm",
+      "sku": ""
+    },
+    {
+      "class_id": 24,
+      "label": "Vaseline Healthy White Lotion 100ml",
+      "sku": ""
+    }
+  ]
+}

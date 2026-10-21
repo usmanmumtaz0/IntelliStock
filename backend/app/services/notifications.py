@@ -5,6 +5,7 @@ import ssl
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
+from urllib.parse import urlencode, urlparse
 from sqlalchemy import exists, or_, cast, String
 from app.core.config import settings
 from app.database import SessionLocal
@@ -79,23 +80,51 @@ def queue_notifications(session_factory=SessionLocal, config=settings) -> int:
             return queued
 
 
+def _inventory_url(config, product_id: str) -> str | None:
+    base = config.FRONTEND_URL.strip().rstrip("/")
+    parsed = urlparse(base)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return f"{base}/inventory?{urlencode({'product_id': product_id})}"
+
+
 def send_email(delivery, alert, config=settings):
     if not configuration_status(config)["ready"] or delivery.recipient not in approved_recipients(config):
         raise RuntimeError("Delivery is disabled or recipient is not approved")
+
+    product = alert.product
+    product_name = product.name if product else alert.product_id
+    sku = product.sku if product else None
+    brand = product.brand if product else None
+    threshold = alert.threshold_value
+    if threshold is None and product:
+        threshold = product.low_stock_threshold
+    status_label = "Out of stock" if alert.alert_type == AlertType.OUT_OF_STOCK else "Low stock"
+    event_time = alert.created_at.isoformat() + ("Z" if alert.created_at.tzinfo is None else "")
+    link = _inventory_url(config, alert.product_id)
+
     message = EmailMessage()
     message["From"] = config.SMTP_FROM
     message["To"] = delivery.recipient
-    message["Subject"] = f"IntelliStock: {alert.alert_type.value} / {alert.severity.value}"
+    message["Subject"] = f"IntelliStock {status_label} Alert - {product_name}"
     # Stable ID helps mail systems identify a retry, but SMTP is not exactly-once.
     message["Message-ID"] = f"<{delivery.id}@intellistock.local>"
     message["Date"] = formatdate(localtime=False)
-    message.set_content(f"{alert.title}\n\nAlert: {alert.id}\nStage: {alert.status.value}\n"
-                        f"Product: {alert.product.name if alert.product else alert.product_id}\n"
-                        f"Shelf: {alert.zone.name if alert.zone else alert.zone_id}\n"
-                        f"Quantity at alert creation: {alert.current_quantity}\n"
-                        "Review current inventory in IntelliStock before acting.\n")
+    lines = [
+        f"Product: {product_name}",
+        f"Brand: {brand or 'Not specified'}",
+        f"SKU: {sku or 'Not specified'}",
+        f"Current stock: {alert.current_quantity}",
+        f"Minimum threshold: {threshold if threshold is not None else 'Not configured'}",
+        f"Status: {status_label}",
+        f"Event time: {event_time}",
+        "",
+        "Action: Review inventory and replenish if required.",
+    ]
+    if link:
+        lines.extend(["", f"Inventory: {link}"])
+    message.set_content("\n".join(lines) + "\n")
     _submit_email(message, config)
-
 
 def send_test_email(confirmed_recipient: str, config=settings) -> None:
     """Explicit operator test only; does not enable or drain the alert queue."""

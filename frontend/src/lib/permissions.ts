@@ -14,6 +14,7 @@ export const routePermissions: Record<string, string | null> = {
   "/assistant": "chatbot.use",
   "/requests": "requests.read_own",
   "/settings": null,
+  "/video-processing": "video_jobs.read",
 };
 
 export function canVisit(user: AuthUser | null, path: string): boolean {

@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, Clock, Eye, ShieldCheck, Activity } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Check,
+  Eye,
+  LockKeyhole,
+  ScanLine,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Logo } from "@/components/app/app-shell";
-import { LiveIndicator, CountDisplay } from "@/components/app/primitives";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { PasswordInput } from "@/components/app/password-input";
@@ -13,7 +21,7 @@ export const Route = createFileRoute("/")({
       { title: "Sign in — IntelliStock" },
       {
         name: "description",
-        content: "Sign in to IntelliStock, the computer-vision verified shelf inventory dashboard.",
+        content: "Secure access to the IntelliStock retail inventory operations platform.",
       },
     ],
   }),
@@ -71,159 +79,217 @@ function AuthPage() {
   };
 
   const field =
-    "h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/60";
+    "h-11 w-full rounded-lg border border-border/80 bg-background/70 px-3.5 text-sm outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary/70 focus:ring-4 focus:ring-primary/10";
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      <div className="relative hidden flex-col justify-between overflow-hidden border-r bg-sidebar p-10 grid-bg lg:flex">
-        <Logo />
-        <div className="relative max-w-lg">
-          <LiveIndicator label="Verified in real time" />
-          <h1 className="mt-4 text-4xl font-semibold leading-[1.1] tracking-tight">
-            Shelf inventory you can <span className="text-primary">actually trust.</span>
-          </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
-            Cameras observe. The reconciliation engine verifies changes over time. Only confirmed
-            inventory reaches the operations console.
-          </p>
-          <div className="mt-8 rounded-lg border bg-surface p-4">
-            <div className="mb-3 flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
-              <span>Shelf observation</span>
-              <span className="font-mono">SECURE SESSION</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="mb-1 flex items-center gap-1 text-[11px] text-verified">
-                  <CheckCircle2 className="size-3" /> Verified
-                </p>
-                <CountDisplay count={12} size="lg" />
-              </div>
-              <div className="h-10 w-px bg-border" />
-              <div>
-                <p className="mb-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Clock className="size-3" /> Observed · reconciling
-                </p>
-                <span className="pending-hatch inline-flex rounded px-2 py-0.5 font-mono text-2xl text-muted-foreground">
-                  9?
-                </span>
-              </div>
-            </div>
+    <main className="auth-shell grid min-h-screen overflow-x-hidden lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)]">
+      <section className="auth-showcase relative hidden min-h-screen overflow-hidden border-r border-white/10 bg-[#071713] px-8 py-7 text-white lg:flex lg:flex-col xl:px-12 xl:py-9">
+        <div className="auth-orb auth-orb-one" />
+        <div className="auth-orb auth-orb-two" />
+
+        <div className="relative z-10 flex items-center justify-between">
+          <Logo />
+          <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
+            Inventory intelligence
+          </span>
+        </div>
+
+        <div className="relative z-10 my-auto max-w-2xl py-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-primary" />
+            </span>
+            Live operations platform
           </div>
-          <div className="mt-6 grid grid-cols-3 gap-3 text-[12px]">
+
+          <h1 className="mt-6 max-w-xl text-4xl font-semibold leading-[1.05] tracking-[-0.04em] xl:text-5xl">
+            Know what is on every shelf, <span className="text-primary">as it changes.</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-[15px] leading-6 text-white/65">
+            IntelliStock turns camera observations into verified inventory, actionable alerts, and a
+            clear operational record for your entire store.
+          </p>
+
+          <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
             {[
-              { i: Eye, t: "Vision tracking" },
-              { i: ShieldCheck, t: "Verified state" },
-              { i: Activity, t: "Auditable agents" },
-            ].map(({ i: Icon, t }) => (
-              <div key={t} className="flex items-center gap-2 text-muted-foreground">
-                <Icon className="size-4 text-primary" />
-                {t}
+              { icon: Eye, title: "Continuous vision", copy: "Observe shelves in real time" },
+              { icon: ShieldCheck, title: "Verified counts", copy: "Reconcile before committing" },
+              { icon: Activity, title: "Clear decisions", copy: "Trace every operational action" },
+            ].map(({ icon: Icon, title, copy }) => (
+              <div
+                key={title}
+                className="rounded-xl border border-white/10 bg-white/[0.055] p-3.5 backdrop-blur-sm"
+              >
+                <div className="grid size-9 place-items-center rounded-xl bg-primary/15 text-primary">
+                  <Icon className="size-4" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-white/90">{title}</p>
+                <p className="mt-1 text-xs leading-5 text-white/45">{copy}</p>
               </div>
             ))}
           </div>
-        </div>
-        <p className="text-[12px] text-muted-foreground">
-          © 2026 IntelliStock · Final Year Project
-        </p>
-      </div>
 
-      <div className="flex items-center justify-center bg-background p-4 sm:p-8">
-        <div className="w-full max-w-md rounded-2xl border bg-surface p-6 shadow-sm sm:p-8">
-          <div className="mb-8 lg:hidden">
-            <Logo />
+          <div className="mt-6 flex max-w-xl items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                <ScanLine className="size-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white/90">Vision systems online</p>
+                <p className="mt-0.5 text-xs text-white/45">
+                  Monitoring and reconciliation are active
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+              <Check className="size-3.5" /> Operational
+            </div>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {signup ? "Request an account" : "Welcome back"}
-          </h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            {signup
-              ? "New accounts receive Staff access only after administrator approval."
-              : "Sign in to your store operations console."}
-          </p>
-          {notice && (
-            <p role="status" className="mt-4 rounded-md border p-3 text-sm">
-              {notice}
+        </div>
+
+        <div className="relative z-10 flex items-center justify-between text-[11px] text-white/35">
+          <span>© 2026 IntelliStock</span>
+          <span className="flex items-center gap-1.5">
+            <LockKeyhole className="size-3" /> Secure access
+          </span>
+        </div>
+      </section>
+
+      <section className="relative flex min-h-screen min-w-0 items-center justify-center overflow-hidden bg-background px-4 py-6 sm:px-8">
+        <div className="auth-mobile-glow absolute inset-x-0 top-0 h-80 lg:hidden" />
+
+        <div className="relative z-10 min-w-0 w-full max-w-[440px]">
+          <div className="mb-7 flex items-center justify-between lg:hidden">
+            <Logo />
+            <span className="hidden rounded-full border bg-surface/80 px-2.5 py-1 text-[10px] font-medium text-muted-foreground shadow-sm backdrop-blur min-[360px]:inline-flex">
+              Secure console
+            </span>
+          </div>
+
+          <div className="mb-6">
+            <div className="mb-4 grid size-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm">
+              {signup ? <Sparkles className="size-5" /> : <LockKeyhole className="size-5" />}
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              {signup ? "Account request" : "Operations console"}
             </p>
-          )}
-          <form key={signup ? "signup" : "login"} onSubmit={submit} className="mt-6 space-y-4">
-            {signup && (
-              <label className="block space-y-1.5 text-[12px] font-medium">
-                <span>Username</span>
-                <input
-                  name="username"
-                  autoComplete="username"
-                  required
-                  minLength={3}
-                  maxLength={64}
-                  pattern="[A-Za-z0-9_.\-]+"
-                  className={field}
-                />
-              </label>
-            )}
-            <label className="block space-y-1.5 text-[12px] font-medium">
-              <span>Work email</span>
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className={field}
-                placeholder="you@store.com"
-              />
-            </label>
-            <PasswordInput
-              label="Password"
-              name="password"
-              autoComplete={signup ? "new-password" : "current-password"}
-              minLength={signup ? 12 : 1}
-              maxLength={signup ? 128 : 1024}
-              required
-              className={field}
-              placeholder="••••••••"
-            />
-            {signup && (
-              <PasswordInput
-                label="Confirm password (12–128 characters)"
-                name="confirmation"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={128}
-                className={field}
-              />
-            )}
-            {error && (
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
+              {signup ? "Request an account" : "Welcome back"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {signup
+                ? "Submit your details. An administrator will review and activate your access."
+                : "Sign in to monitor inventory and manage store operations."}
+            </p>
+          </div>
+
+          <div className="w-full min-w-0 rounded-2xl border border-border/80 bg-surface/90 p-5 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.45)] backdrop-blur sm:p-6">
+            {notice && (
               <p
-                role="alert"
-                className="rounded-md border border-critical/40 bg-critical/10 px-3 py-2 text-[12px] text-critical"
+                role="status"
+                className="mb-5 rounded-xl border border-healthy/25 bg-healthy/10 p-3.5 text-sm text-healthy"
               >
-                {error}
+                {notice}
               </p>
             )}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="h-10 w-full rounded-md bg-primary text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {submitting ? "Please wait…" : signup ? "Request Staff access" : "Sign in"}
-            </button>
-          </form>
-          <p className="mt-6 text-center text-[12px] text-muted-foreground">
-            <button
-              type="button"
-              disabled={submitting}
-              className="text-primary hover:underline"
-              onClick={() => {
-                setSignup(!signup);
-                setError(null);
-                setNotice(null);
-              }}
-            >
-              {signup ? "Already have an approved account? Sign in" : "New user? Sign up"}
-            </button>
+
+            <form key={signup ? "signup" : "login"} onSubmit={submit} className="space-y-4">
+              {signup && (
+                <label className="block space-y-2 text-[13px] font-medium">
+                  <span>Username</span>
+                  <input
+                    name="username"
+                    autoComplete="username"
+                    required
+                    minLength={3}
+                    maxLength={64}
+                    pattern="[A-Za-z0-9_.\-]+"
+                    className={field}
+                    placeholder="e.g. store.manager"
+                  />
+                </label>
+              )}
+
+              <label className="block space-y-2 text-[13px] font-medium">
+                <span>Work email</span>
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className={field}
+                  placeholder="you@company.com"
+                />
+              </label>
+
+              <PasswordInput
+                label="Password"
+                name="password"
+                autoComplete={signup ? "new-password" : "current-password"}
+                minLength={signup ? 12 : 1}
+                maxLength={signup ? 128 : 1024}
+                required
+                className={field}
+                placeholder="••••••••"
+              />
+
+              {signup && (
+                <PasswordInput
+                  label="Confirm password (12–128 characters)"
+                  name="confirmation"
+                  autoComplete="new-password"
+                  required
+                  minLength={12}
+                  maxLength={128}
+                  className={field}
+                />
+              )}
+
+              {error && (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-critical/35 bg-critical/10 px-3.5 py-3 text-[12px] leading-5 text-critical"
+                >
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:brightness-105 disabled:translate-y-0 disabled:opacity-50"
+              >
+                {submitting ? "Please wait…" : signup ? "Request access" : "Sign in securely"}
+                {!submitting && (
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                )}
+              </button>
+            </form>
+
+            <div className="my-5 h-px bg-border/70" />
+            <p className="text-center text-[12px] text-muted-foreground">
+              <button
+                type="button"
+                disabled={submitting}
+                className="font-medium text-primary hover:underline"
+                onClick={() => {
+                  setSignup(!signup);
+                  setError(null);
+                  setNotice(null);
+                }}
+              >
+                {signup ? "Already approved? Sign in" : "Need access? Request an account"}
+              </button>
+            </p>
+          </div>
+
+          <p className="mx-auto mt-5 flex max-w-sm items-start justify-center gap-2 px-3 text-center text-[11px] leading-5 text-muted-foreground">
+            <ShieldCheck className="size-3.5 text-primary" />
+            Protected access to your organization’s inventory data
           </p>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

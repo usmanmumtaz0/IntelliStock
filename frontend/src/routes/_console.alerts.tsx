@@ -244,6 +244,12 @@ function AlertCard({
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Tag className="font-mono">Zone {zone}</Tag>
           {product?.sku && <Tag className="font-mono">{product.sku}</Tag>}
+          {alert.alert_type === "LOW_STOCK" || alert.alert_type === "OUT_OF_STOCK" ? (
+            <>
+              <Tag className="font-mono">Stock {alert.current_quantity}</Tag>
+              <Tag className="font-mono">Threshold {alert.threshold_value ?? "not set"}</Tag>
+            </>
+          ) : null}
           <span className="text-[11px] text-muted-foreground">
             {product?.name} · {ago(minutesAgo(alert.created_at))}
           </span>

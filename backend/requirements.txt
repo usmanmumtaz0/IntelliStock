@@ -28,6 +28,12 @@ lapx==0.5.11
 # Load only trusted model files. Review this legacy CV stack before production.
 torch==2.2.2
 torchvision==0.17.2
+
+# Product identity evidence (PP-OCRv6 and local DINOv2)
+paddleocr==3.7.0
+paddlepaddle==3.2.1
+transformers==4.46.3
+safetensors==0.6.2
 # Uvicorn 0.24 uses the legacy WebSocket server API.
 websockets==12.0
 

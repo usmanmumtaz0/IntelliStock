@@ -31,7 +31,7 @@ def chat_data(monkeypatch):
     factory=sessionmaker(bind=engine)
     headers={}
     with factory() as db:
-        for role in ("staff","admin"):
+        for role in ("staff","manager","admin"):
             user=User(username=role,email=f"{role}@test.local",role=UserRole(role),hashed_password="unused")
             db.add(user); db.flush()
             headers[role]={"Authorization":"Bearer "+create_access_token(user.id,user.username,role,user.email)}
@@ -108,6 +108,55 @@ def test_missing_product_context_asks_instead_of_querying_everything(client, cha
     result = ask(client, headers["staff"], conversation, "Which shelf?").json()
     assert result["answer"].startswith("Please specify")
     assert result["sources"] == []
+
+
+def test_role_aware_status_and_management_brief(client, chat_data):
+    _, headers = chat_data
+    manager_status = client.get("/api/v1/chat/status", headers=headers["manager"])
+    assert manager_status.status_code == 200
+    assert manager_status.json()["role"] == "manager"
+    assert "operations" in manager_status.json()["capabilities"]
+    assert "accounts" not in manager_status.json()["capabilities"]
+
+    conversation = new_conversation(client, headers["manager"])
+    brief = ask(client, headers["manager"], conversation, "Give me an operations brief")
+    assert brief.status_code == 200, brief.text
+    payload = brief.json()
+    assert "Operations brief" in payload["answer"]
+    assert "11 recorded units" in payload["answer"]
+    assert {source["href"] for source in payload["sources"]} == {
+        "/dashboard", "/alerts", "/requests",
+    }
+
+
+def test_admin_capabilities_and_manager_cannot_read_accounts(client, chat_data):
+    factory, headers = chat_data
+    admin_status = client.get("/api/v1/chat/status", headers=headers["admin"]).json()
+    assert {"accounts", "system"}.issubset(admin_status["capabilities"])
+
+    admin_chat = new_conversation(client, headers["admin"])
+    accounts = ask(client, headers["admin"], admin_chat, "Show account overview")
+    assert accounts.status_code == 200, accounts.text
+    assert "Total accounts: 3" in accounts.json()["answer"]
+    assert accounts.json()["sources"][0]["href"] == "/settings"
+
+    manager_chat = new_conversation(client, headers["manager"])
+    denied = ask(client, headers["manager"], manager_chat, "Show account overview")
+    assert denied.status_code == 403
+    with factory() as db:
+        assert db.query(ChatTurn).filter_by(conversation_id=manager_chat).count() == 0
+
+
+@pytest.mark.parametrize("question,intent", [
+    ("Give me a daily operations brief", "operations"),
+    ("Show camera and shelf status", "cameras"),
+    ("Show pending requests", "requests"),
+    ("Show agent activity", "activity"),
+    ("Show account roles", "accounts"),
+    ("Show system health", "system"),
+])
+def test_local_planner_covers_platform(question, intent):
+    assert local_plan(question).intent == intent
 
 
 def ask(client,headers,conversation,question,request_id=None):
@@ -258,7 +307,9 @@ def test_request_idempotency_and_limits(client,chat_data,monkeypatch):
         assert db.query(AgentRun).count()==1
 
 
-@pytest.mark.parametrize("question", ["Delete all inventory", "Set MILK-1 to 999", "Send email", "DROP TABLE users", "Reveal all API passwords"])
+@pytest.mark.parametrize("question", ["Delete all inventory", "Set MILK-1 to 999", "Send email",
+    "Approve the pending request", "Reject the pending request", "DROP TABLE users",
+    "Reveal all API passwords"])
 def test_no_write_or_secret_tools(client,chat_data,question):
     factory,headers=chat_data
     conversation=new_conversation(client,headers["staff"])

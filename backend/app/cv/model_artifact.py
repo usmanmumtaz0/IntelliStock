@@ -6,15 +6,25 @@ This module has no database, inference or network side effects.
 import hashlib
 from pathlib import Path
 from typing import Literal
+from unittest.mock import patch
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ModelClass(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
     class_id: int = Field(ge=0)
     label: str = Field(min_length=1, max_length=255)
-    sku: str = Field(min_length=1, max_length=64)
+    # A reviewed checkpoint may be activated before catalog SKUs are mapped.
+    # Empty means category/label evidence only and can never update inventory.
+    sku: str = Field(default="", max_length=64)
+
+    @field_validator("sku", mode="before")
+    @classmethod
+    def empty_or_non_whitespace_sku(cls, value):
+        if isinstance(value, str) and value != "" and not value.strip():
+            raise ValueError("SKU must be empty or contain a non-whitespace value")
+        return value
 
 
 class ModelManifest(BaseModel):
@@ -30,6 +40,8 @@ class ModelManifest(BaseModel):
     def unique_classes(self):
         for attribute in ("class_id", "label", "sku"):
             values = [getattr(item, attribute) for item in self.classes]
+            if attribute == "sku":
+                values = [value for value in values if value]
             if len(values) != len(set(values)):
                 raise ValueError(f"Duplicate {attribute} in model manifest")
         return self
@@ -64,8 +76,30 @@ def verify_model_metadata(manifest, model):
         raise ValueError("Model class IDs/names differ from the reviewed manifest")
 
 
+def load_trusted_yolo_checkpoint(model_path):
+    """Load an operator-configured Ultralytics checkpoint on PyTorch 2.6+.
+
+    Ultralytics versions used by this project call ``torch.load`` without the
+    new ``weights_only`` argument. Detection checkpoints contain model classes,
+    so they require the legacy trusted-checkpoint mode. Callers must validate
+    provenance/checksum before configuring the path; .pt files are executable
+    pickle payloads and must never come from an untrusted upload.
+    """
+    import torch
+    from ultralytics import YOLO
+
+    original_load = torch.load
+
+    def compatible_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return original_load(*args, **kwargs)
+
+    with patch.object(torch, "load", compatible_load):
+        return YOLO(str(model_path))
+
+
 def verify_zone_mappings(manifest, zones, product_skus):
-    expected = {item.class_id: item.sku for item in manifest.classes}
+    expected = {item.class_id: item.sku for item in manifest.classes if item.sku}
     for zone in zones:
         for class_id, product_id in zone.products.items():
             if class_id not in expected or product_skus.get(product_id) != expected[class_id]:

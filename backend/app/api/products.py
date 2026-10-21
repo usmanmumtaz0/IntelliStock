@@ -62,7 +62,7 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db), user=D
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, "SKU already exists")
+        raise HTTPException(409, "SKU or barcode already exists")
     db.refresh(db_product)
     return db_product
 
@@ -92,7 +92,11 @@ def update_product(product_id: str, product: ProductUpdate, db: Session = Depend
                 stock_changed(db, inv)
     audit(db, user, "update", "product", product_id, old, update_data)
     enqueue(db, "configuration_updated", {"resource": "products"})
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Barcode already belongs to another product")
     db.refresh(db_product)
     return db_product
 

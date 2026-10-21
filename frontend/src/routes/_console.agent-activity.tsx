@@ -40,9 +40,9 @@ function AgentActivity() {
         description="Execution history for insights, notifications and read-only chat. Private chat content is never shown here."
         actions={<Tag tone="primary">Read-only</Tag>}
       />
-      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.label} className="min-w-0 rounded-xl border bg-surface p-5 shadow-sm">
+          <div key={card.label} className="min-w-0 rounded-lg border bg-surface p-4 shadow-sm">
             <div className="flex items-center justify-between text-[12px] text-muted-foreground">
               <span>{card.label}</span>
               <card.icon className="size-4" />

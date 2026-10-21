@@ -2,8 +2,40 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** User-supplied model staged and CPU smoke-tested; awaiting approval to create its 25 exact catalog products and shelf footage/calibration before activation. RBAC Phase 7 delivery, browser/PostgreSQL concurrency acceptance and Redis remain open.
-**Last Updated:** Oct 14, 2026 | 285 backend tests, 36 frontend tests, runtime reload and read-only smoke checks
+**Currently On:** Video/image upload now fills the desktop workspace when camera capture is unavailable. Authenticated console browser acceptance remains blocked by the existing local API login timeout; licensed DINOv2 SKU references, RBAC Phase 7, PostgreSQL concurrency acceptance and Redis remain open.
+**Last Updated:** Oct 21, 2026 | 315 backend tests, 38 frontend tests, TypeScript, targeted ESLint and production frontend build passed
+
+
+### Video/image upload workspace width (Oct 21, 2026)
+
+- [x] Made the upload panel span the full desktop grid when the current role cannot access Camera capture, removing the unused right-side column. Camera-authorized users retain the existing two-panel layout; upload behavior and responsive mobile/tablet layout are unchanged.
+- Verification: frontend TypeScript, targeted route ESLint, full 38-test frontend suite and production build passed. Full backend suite passed 315 tests. No API, permission, upload-processing or shared-style changes.
+
+### Settings page organization and preservation (Oct 21, 2026)
+
+- [x] Audited the Settings route, authentication/profile contract, permission model, theme persistence, product and user management, notification delivery diagnostics and camera configuration before editing.
+- [x] Reorganized personal settings into clear My Account, Security, Appearance and Notification Preferences panels with responsive two-column layout, concise descriptions and explicit saved-state feedback for the existing browser theme preference.
+- [x] Preserved the existing Products, Users & access and Email delivery tabs, their real API-backed components and server-permission gates. Preserved the Shelves camera-configuration link and all existing role behavior.
+- [x] Kept unsupported features honest: the backend exposes no self-service password/session-management or personal notification-preference APIs, so these panels explain current behavior without fake controls or invented persistence.
+- Verification: 11 frontend test files / 38 tests passed; TypeScript and production build passed; ESLint has 0 errors and 10 existing Fast Refresh warnings. Added focused Settings rendering and RBAC regression coverage. No backend, API, dependency, global style or unrelated route changes.
+
+### Frontend modernization and responsive density (Oct 21, 2026)
+
+- [x] Audited the React/TanStack/Tailwind/Radix frontend, route structure, RBAC navigation, shared primitives, data tables, dialogs, loading/empty states and existing test/build commands.
+- [x] Centralized shell sizing tokens and reduced the desktop sidebar, header, page gutters, page heroes, panel padding, toolbars, table rows and metric cards for higher information density without removing controls or routes.
+- [x] Improved mobile dialog insets and scrolling, compacted the professional login layout, and tightened Dashboard, Shelves/Cameras, Video Processing, Agent Activity and Settings layouts. Shared PageHeader, Panel, table, toolbar and empty-state updates apply across Inventory, Alerts, Reports, Requests and Assistant.
+- [x] Preserved API contracts, authentication, role permissions, navigation filtering, camera/AI behavior, inventory logic and real-data queries. No backend or functional behavior changes were required.
+- Verification: TypeScript passed; 10 frontend test files / 36 tests passed; production build passed; ESLint has 0 errors and 10 existing Fast Refresh warnings; diff whitespace passed.
+- Rendered login review passed at 1440x900, 768x1024 and emulated 390x844. True mobile layout reported innerWidth 390 and scrollWidth 390. Authenticated dashboard capture was attempted but the existing local API login timed out, so authenticated browser interaction remains unverified.
+
+
+### Pretrained OCR and visual identity evidence (Oct 21, 2026)
+
+- [x] Added lazy PP-OCRv6 packaging-text evidence and local-only DINOv2 catalog retrieval behind explicit configuration. Video tracks reuse evidence until a sharper crop appears.
+- [x] Added conservative OCR/visual confidence fusion: agreement can identify a unique catalog product; conflicting or weak evidence stays ambiguous/unknown for human review. Detection evidence still cannot mutate inventory.
+- [x] Added provider health, CPU defaults, pinned dependencies in the main backend requirements, safe relative reference-image resolution, focused tests and setup/evaluation documentation.
+- [x] Installed the pinned identity runtime. PP-OCRv6 model files are cached under private media, OCR is locally enabled, and a CPU image smoke read `LAYS MASALA 34 GM` at 99.99% confidence. DINOv2-small is staged under ignored models and returned 1.0 for an identical synthetic reference/crop smoke test.
+- [ ] Add licensed multi-view reference images for real catalog SKUs, calibrate thresholds on held-out images/video, then explicitly enable DINOv2. No product-accuracy claim until that acceptance is complete.
 
 ### Supplied model preparation (Oct 14, 2026)
 

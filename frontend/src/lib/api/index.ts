@@ -1,4 +1,4 @@
-import { apiRequest, queryString } from "./client";
+import { apiRequest, queryString, uploadRequest } from "./client";
 import type {
   AgentRunDto,
   AgentStats,
@@ -17,6 +17,12 @@ import type {
   StoreInfo,
   VerifyResponse,
   ZoneDto,
+  VideoFrameListDto,
+  VideoJobDto,
+  VideoJobListDto,
+  DetectorHealthDto,
+  DetectionReviewListDto,
+  VideoDetectionDto,
 } from "./types";
 
 export * from "./client";
@@ -103,4 +109,31 @@ export const api = {
   agentRuns: (hours = 24) =>
     apiRequest<AgentRunDto[]>(`/agents/runs${queryString({ hours, limit: 100 })}`),
   agentStats: (hours = 24) => apiRequest<AgentStats>(`/agents/stats${queryString({ hours })}`),
+
+  videoJobs: () => apiRequest<VideoJobListDto>("/video-jobs"),
+  videoJob: (id: string) => apiRequest<VideoJobDto>(`/video-jobs/${encodeURIComponent(id)}`),
+  videoFrames: (id: string) =>
+    apiRequest<VideoFrameListDto>(`/video-jobs/${encodeURIComponent(id)}/frames?limit=200`),
+  cancelVideoJob: (id: string) =>
+    apiRequest<{ id: string; status: string; cancel_requested: boolean }>(
+      `/video-jobs/${encodeURIComponent(id)}/cancel`,
+      { method: "POST" },
+    ),
+  createCameraVideoJob: (cameraId: string, options: Record<string, unknown>) =>
+    apiRequest<VideoJobDto>(`/video-jobs/cameras/${encodeURIComponent(cameraId)}`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    }),
+  uploadVideo: (body: FormData, onProgress?: (percent: number) => void) =>
+    uploadRequest<VideoJobDto>("/video-jobs", body, onProgress),
+  uploadImage: (body: FormData, onProgress?: (percent: number) => void) =>
+    uploadRequest<VideoJobDto>("/video-jobs/images", body, onProgress),
+  detectorHealth: () => apiRequest<DetectorHealthDto>("/video-jobs/model-health"),
+  detectionReviewQueue: () =>
+    apiRequest<DetectionReviewListDto>("/video-jobs/review-queue?limit=100"),
+  identifyDetection: (detectionId: string, productId: string) =>
+    apiRequest<VideoDetectionDto>(
+      `/video-jobs/detections/${encodeURIComponent(detectionId)}/identify`,
+      { method: "POST", body: JSON.stringify({ product_id: productId }) },
+    ),
 };

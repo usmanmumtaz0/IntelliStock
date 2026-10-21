@@ -120,8 +120,13 @@ GitHub Actions runs the same backend and frontend checks for pushes to `main` an
 - Camera CRUD under `/api/v1/cameras`
 - `GET /api/v1/agents/runs`, `GET /api/v1/agents/stats`
 - Authenticated `WS /ws/inventory`
+- Durable media jobs under `/api/v1/video-jobs` for pictures, videos, and bounded camera captures
 
 See [docs/API_REFERENCE.md](docs/API_REFERENCE.md) for the broader backend contract and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment guidance.
+
+Uploaded video processing requires a separate durable worker. Run `python -m app.workers.video_jobs`
+from `backend`, or use the `video-worker` Compose service. Setup, limits, model behavior, and
+inventory safety are documented in [Video processing](docs/VIDEO_PROCESSING.md).
 
 ## Operational console (Phase 4)
 
@@ -143,6 +148,10 @@ Install the updated requirements (Pydantic 2.7.4 fixes the pinned LangGraph stac
 
 ## Model handoff and evaluation (Phase 7)
 
-Vision startup now requires both `CV_MODEL_PATH` and `CV_MODEL_MANIFEST` (or explicit CLI overrides). A reviewed JSON manifest pins the checkpoint SHA-256, detection class names and SKU mappings. Both local paths remain blank while training is pending.
+Vision startup uses explicit `CV_MODEL_PATH` and `CV_MODEL_MANIFEST` values. The repository's
+25-class YOLOv8 checkpoint and metadata-reviewed manifest have matching SHA-256 and embedded class
+labels. Empty catalog SKU mappings remain review-only and cannot change inventory.
 
-The [Phase 7 guide](docs/PHASE_7_MODEL_HANDOFF.md) covers read-only artifact checks, local-video observation replay and count scoring with explicit abstentions. These tools never certify accuracy automatically. Real weights, held-out footage and service-backed acceptance remain outstanding; no trained model has been activated.
+The [vision pipeline guide](docs/VISION_PIPELINE.md) covers Windows/NVIDIA setup, image/video/camera
+testing, product identity review, dataset preparation, evaluation, and current limitations. No
+held-out dataset was supplied, so accuracy is not claimed.

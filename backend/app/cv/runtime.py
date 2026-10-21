@@ -96,8 +96,8 @@ class YOLOTracker:
         if not Path(model_path).is_file():
             raise ValueError("Supply an existing trusted model file; automatic downloads are disabled")
         os.environ["YOLO_AUTOINSTALL"] = "false"
-        from ultralytics import YOLO
-        self.model = YOLO(model_path)
+        from app.cv.model_artifact import load_trusted_yolo_checkpoint
+        self.model = load_trusted_yolo_checkpoint(model_path)
         self.device = device
 
     def detect(self, frame):

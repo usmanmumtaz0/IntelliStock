@@ -58,6 +58,21 @@ Authentication failures return the same `401` message for unknown emails, wrong 
 | Acknowledge/resolve/dismiss alerts | No | Yes | Yes |
 | Delete products and cameras | No | No | Yes |
 | Read audit and detailed health records | No | No | Yes |
+| Upload and review video jobs | Yes | Yes | Yes |
+| Start jobs from configured cameras | No | No | Yes |
+
+## Video processing
+
+- `POST /video-jobs` accepts a multipart MP4, AVI, or MOV plus bounded sampling options.
+- `POST /video-jobs/images` accepts a multipart JPG, PNG, or WebP and queues one-frame detection.
+- `POST /video-jobs/cameras/{camera_id}` queues a bounded capture from a server-configured camera (admin only).
+- `GET /video-jobs` and `GET /video-jobs/{id}` return job state and aggregate results.
+- `GET /video-jobs/{id}/frames` returns timestamps, detections, normalized/pixel boxes, confidence, and track IDs.
+- `GET /video-jobs/{id}/frames/{frame_id}/image` returns a private annotated JPEG.
+- `POST /video-jobs/{id}/cancel` requests cancellation.
+
+Job responses never expose storage paths or camera credentials. Detection instances and unique tracks are
+review evidence; these endpoints do not mutate committed inventory.
 
 ## Inventory contract
 
@@ -164,3 +179,17 @@ Retry-After: 60
 ```json
 {"detail": "Too many login attempts. Please try again later."}
 ```
+
+## Vision processing and identity
+
+- `POST /video-jobs` uploads a bounded video job.
+- `POST /video-jobs/images` uploads a JPG, PNG, or WebP job.
+- `POST /video-jobs/cameras/{camera_id}` queues an administrator-only bounded camera job.
+- `GET /video-jobs/model-health` reports checkpoint/manifest/device readiness without downloading a model.
+- `GET /video-jobs/review-queue` returns owner-scoped unresolved identity evidence.
+- `POST /video-jobs/detections/{detection_id}/identify` lets an authorized manager/admin attach a catalog item without changing inventory.
+
+Detection responses include `identity_status`, `identity_confidence`, category, optional catalog
+product metadata, and evidence. Supported states are `identified`, `category_only`, `unknown`, and
+`ambiguous`. Job changes publish durable `vision_job_updated` events; clients must refetch the REST
+resource and must not treat WebSocket payloads or bounding-box counts as authoritative stock.

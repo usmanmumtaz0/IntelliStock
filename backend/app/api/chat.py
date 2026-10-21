@@ -13,7 +13,7 @@ from app.models.chat import ChatConversation, ChatTurn
 from app.models.agent_run import AgentRun, AgentRunStatus
 from app.services.chat_providers import provider_ready, data_policy
 from app.services.chat_graph import run_chat
-from app.services.chat_tools import authorize_plan
+from app.services.chat_tools import authorize_plan, available_capabilities
 from app.core.rate_limiter import shared_rate_limiter
 
 router = APIRouter(prefix="/api/v1/chat", tags=["assistant"])
@@ -42,10 +42,12 @@ def owned(db, conversation_id, user, lock=False):
 
 
 @router.get("/status")
-def chat_status():
+def chat_status(user=Depends(get_current_user)):
     return {"provider":settings.CHAT_PROVIDER, "provider_ready":provider_ready(),
             "read_only":True, "max_turns":settings.CHAT_MAX_TURNS,
-            "data_policy":data_policy()}
+            "data_policy":data_policy(),
+            "role":getattr(user.role, "value", user.role),
+            "capabilities":available_capabilities(user)}
 
 
 @router.get("/conversations")

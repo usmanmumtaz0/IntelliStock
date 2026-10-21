@@ -17,14 +17,14 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("min-w-0 rounded-xl border bg-surface shadow-sm", className)}>
+    <section className={cn("min-w-0 rounded-lg border bg-surface shadow-sm", className)}>
       {(title || action) && (
-        <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+        <header className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5">
           <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           {action}
         </header>
       )}
-      <div className={cn("p-5", bodyClassName)}>{children}</div>
+      <div className={cn("p-4", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -235,13 +235,13 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-surface/50 px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-surface/50 px-5 py-10 text-center">
       <div className="grid size-10 place-items-center rounded-md border bg-surface-2">
         <Icon className="size-5 text-muted-foreground" />
       </div>
       <div>
         <p className="text-sm font-medium">{title}</p>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
+        <p className="mt-1.5 max-w-sm text-sm leading-5 text-muted-foreground">{description}</p>
       </div>
       {action}
     </div>
@@ -284,20 +284,43 @@ export function PageHeader({
   title,
   description,
   actions,
+  eyebrow,
+  icon: Icon,
+  meta,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  eyebrow?: string;
+  icon?: LucideIcon;
+  meta?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-        {description && (
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+    <section className="console-hero mb-5 overflow-hidden rounded-xl border border-primary/15 bg-surface shadow-sm">
+      <div className="relative z-10 flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          {Icon && (
+            <div className="hidden size-10 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary sm:grid">
+              <Icon className="size-5" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+              {eyebrow ?? "IntelliStock workspace"}
+            </p>
+            <h1 className="text-xl font-semibold tracking-[-0.025em] sm:text-2xl">{title}</h1>
+            {description && (
+              <p className="mt-1.5 max-w-2xl text-sm leading-5 text-muted-foreground">
+                {description}
+              </p>
+            )}
+            {meta && <div className="mt-3 flex flex-wrap items-center gap-2">{meta}</div>}
+          </div>
+        </div>
+        {actions && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">{actions}</div>
         )}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </div>
+    </section>
   );
 }

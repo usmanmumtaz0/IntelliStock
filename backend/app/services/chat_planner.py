@@ -8,7 +8,10 @@ from app.services.chat_providers import generate_plan, provider_ready
 
 class ReadPlan(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    intent: Literal["inventory", "alerts", "history", "summary", "help", "unsupported"]
+    intent: Literal[
+        "inventory", "alerts", "history", "summary", "operations", "cameras",
+        "requests", "activity", "accounts", "system", "help", "unsupported",
+    ]
     product_query: str = Field(max_length=80)
     use_previous_product: bool
     stock_filter: Literal["all", "low_stock", "out_of_stock", "camera_offline", "detection_uncertain"]
@@ -19,9 +22,21 @@ class ReadPlan(BaseModel):
 def local_plan(question: str) -> ReadPlan:
     text = question.lower()
     intent = "unsupported"
-    if re.search(r"\b(delete|update|change|set|adjust|correct|send|email|disable|enable|resolve|acknowledge|execute|drop|insert)\b", text):
+    if re.search(r"\b(delete|update|change|set|adjust|correct|send|email|disable|enable|resolve|acknowledge|approve|reject|execute|drop|insert)\b", text):
         return ReadPlan(intent=intent, product_query="", use_previous_product=False, stock_filter="all", days=7)
-    if re.search(r"\b(history|changes|changed|movement)\b", text):
+    if re.search(r"\b(users?|accounts?|signups?|staff|managers?|roles?)\b", text):
+        intent = "accounts"
+    elif re.search(r"\b(system health|diagnostics?|database health|redis|performance issues?)\b", text):
+        intent = "system"
+    elif re.search(r"\b(requests?|approvals?|restock queue|review queue)\b", text):
+        intent = "requests"
+    elif re.search(r"\b(agent activity|agent runs?|automation activity|ai activity)\b", text):
+        intent = "activity"
+    elif re.search(r"\b(cameras?|zones?|camera status|shelf status)\b", text):
+        intent = "cameras"
+    elif re.search(r"\b(operations?|daily brief|management brief|store brief|priorities|what needs attention)\b", text):
+        intent = "operations"
+    elif re.search(r"\b(history|changes|changed|movement)\b", text):
         intent = "history"
     elif re.search(r"\b(alerts?|warnings?)\b", text):
         intent = "alerts"
@@ -55,8 +70,12 @@ def provider_plan(question: str, previous_plan: dict | None, config=settings) ->
     prompt = (
         "Classify a question for a read-only inventory assistant. Return only the requested schema. "
         "No SQL, commands, secrets, writes, purchases, email, forecasts or invented stock facts. "
-        "Requests for these or unrelated subjects use unsupported. Use summary for overall counts; "
-        "history for recorded changes; alerts for active alerts; inventory for current quantities. "
+        "Requests for these or unrelated subjects use unsupported. Use summary for inventory totals; "
+        "operations for a management brief or priorities; cameras for camera, zone, or shelf status; "
+        "requests for operational requests or approvals; activity for agent execution activity; "
+        "accounts for users, roles, or pending signups; system for diagnostics, database, Redis, or "
+        "performance health; history for recorded changes; alerts for active alerts; inventory for "
+        "current quantities. The server independently enforces access for every intent. "
         "product_query is an exact SKU or product-name search fragment explicitly in the question, "
         "never an invented identifier. Empty means no product filter. use_previous_product is true "
         "only for explicit follow-ups about the previous product. days is 1 to 90, default 7. "
@@ -70,7 +89,7 @@ def provider_plan(question: str, previous_plan: dict | None, config=settings) ->
 def interpret(question: str, previous_plan: dict | None, config=settings) -> dict:
     fallback = local_plan(question)
     # This precheck is a usability guard. Actual safety is the read-only tool allowlist.
-    write_request = bool(re.search(r"\b(delete|update|set|adjust|correct|send|email|disable|enable|resolve|acknowledge|execute|drop|insert)\b", question, re.I))
+    write_request = bool(re.search(r"\b(delete|update|set|adjust|correct|send|email|disable|enable|resolve|acknowledge|approve|reject|execute|drop|insert)\b", question, re.I))
     mode, notice = "local", "Local search; no external AI was called. Put the product name in quotation marks or enter its product code."
     plan = fallback
     if config.CHAT_PROVIDER != "local" and not write_request:

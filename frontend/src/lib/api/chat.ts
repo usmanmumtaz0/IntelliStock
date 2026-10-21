@@ -34,6 +34,8 @@ export interface ChatStatus {
   read_only: boolean;
   max_turns: number;
   data_policy: string;
+  role: "staff" | "manager" | "admin";
+  capabilities: string[];
 }
 export const chat = {
   status: () => apiRequest<ChatStatus>("/chat/status"),
@@ -56,5 +58,9 @@ export const chat = {
 /** Sources are internal record references, never model-provided external URLs. */
 export function safeSourceHref(value: string): string | null {
   if (/[\s\\]/.test(value)) return null;
-  return /^\/(inventory|alerts|reports)(\?[^\\\r\n]*)?$/.test(value) ? value : null;
+  return /^\/(dashboard|inventory|alerts|reports|shelves|requests|agent-activity|settings)(\?[^\\\r\n]*)?$/.test(
+    value,
+  )
+    ? value
+    : null;
 }

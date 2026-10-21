@@ -63,6 +63,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RATE_LIMIT_LOGIN_REQUESTS: ${RATE_LIMIT_LOGIN_REQUESTS:-5}
       RATE_LIMIT_LOGIN_WINDOW_SECONDS: ${RATE_LIMIT_LOGIN_WINDOW_SECONDS:-60}
+      VIDEO_STORAGE_ROOT: /app/media
     ports:
       - "8000:8000"
     depends_on:
@@ -90,10 +91,53 @@ services:
     networks: [intellistock]
     restart: unless-stopped
 
+  video-worker:
+    build: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CV_MODEL_PATH: /models/best.pt
+      CV_MODEL_MANIFEST: ${CV_MODEL_MANIFEST_DOCKER:-/models/model-manifest.json}
+      CV_DETECTOR: ${CV_DETECTOR:-yolov8}
+      CV_DEVICE: ${CV_DEVICE:-auto}
+      CV_NMS_IOU_THRESHOLD: ${CV_NMS_IOU_THRESHOLD:-0.45}
+      CV_MAX_DETECTIONS: ${CV_MAX_DETECTIONS:-300}
+      CV_IDENTITY_MIN_CONFIDENCE: ${CV_IDENTITY_MIN_CONFIDENCE:-0.65}
+      CV_OCR_ENABLED: ${CV_OCR_ENABLED:-false}
+      CV_OCR_LANGUAGE: ${CV_OCR_LANGUAGE:-en}
+      CV_OCR_VERSION: ${CV_OCR_VERSION:-PP-OCRv6}
+      CV_OCR_DEVICE: ${CV_OCR_DEVICE:-cpu}
+      CV_OCR_MIN_CONFIDENCE: ${CV_OCR_MIN_CONFIDENCE:-0.55}
+      CV_OCR_MATCH_MIN_CONFIDENCE: ${CV_OCR_MATCH_MIN_CONFIDENCE:-0.72}
+      CV_OCR_MATCH_MIN_MARGIN: ${CV_OCR_MATCH_MIN_MARGIN:-0.10}
+      CV_EMBEDDING_ENABLED: ${CV_EMBEDDING_ENABLED:-false}
+      CV_EMBEDDING_MODEL_PATH: ${CV_EMBEDDING_MODEL_PATH_DOCKER:-}
+      CV_EMBEDDING_DEVICE: ${CV_EMBEDDING_DEVICE:-cpu}
+      CV_REFERENCE_IMAGE_ROOT: /app/media/product-references
+      CV_RETRIEVAL_MIN_CONFIDENCE: ${CV_RETRIEVAL_MIN_CONFIDENCE:-0.82}
+      CV_RETRIEVAL_MIN_MARGIN: ${CV_RETRIEVAL_MIN_MARGIN:-0.05}
+      CV_MAX_REFERENCE_IMAGES: ${CV_MAX_REFERENCE_IMAGES:-500}
+      CV_EVIDENCE_REFRESH_SHARPNESS_RATIO: ${CV_EVIDENCE_REFRESH_SHARPNESS_RATIO:-1.20}
+      CV_IDENTITY_CACHE_ROOT: /app/media/model-cache
+      VIDEO_STORAGE_ROOT: /app/media
+      VIDEO_ALLOWED_CAMERA_HOSTS: ${VIDEO_ALLOWED_CAMERA_HOSTS:-}
+    command: python -m app.workers.video_jobs
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./models:/models:ro
+    networks: [intellistock]
+    restart: unless-stopped
+
   notifications:
     build: ./backend
     profiles: [notifications]
     environment:
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}

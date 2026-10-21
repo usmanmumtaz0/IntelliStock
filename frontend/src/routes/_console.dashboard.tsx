@@ -9,6 +9,8 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUp,
+  LayoutDashboard,
+  MessageSquareText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -116,12 +118,40 @@ function Dashboard() {
     <>
       <PageHeader
         title={store.data?.name ?? "Store overview"}
+        eyebrow="Operations command center"
+        icon={LayoutDashboard}
         description={
           store.data
             ? `${store.data.location} · ${store.data.floor}`
             : "Verified inventory operations"
         }
-        actions={<LiveIndicator label="Auto-refresh" />}
+        meta={
+          <>
+            <span className="console-stat-pill">
+              <strong>{values?.total_skus ?? 0}</strong> products tracked
+            </span>
+            <span className="console-stat-pill">
+              <strong>{zones.data?.length ?? 0}</strong> shelf zones
+            </span>
+            <span className="console-stat-pill">
+              <ShieldCheck className="size-3 text-healthy" /> Verified operational data
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Link
+              to="/assistant"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border bg-surface/80 px-4 text-[12px] font-medium shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+            >
+              <MessageSquareText className="size-4 text-primary" />
+              Ask assistant
+            </Link>
+            <span className="inline-flex h-10 items-center rounded-xl border border-healthy/20 bg-healthy/10 px-4">
+              <LiveIndicator label="Auto-refresh" />
+            </span>
+          </>
+        }
       />
       {failed && (
         <p
@@ -132,32 +162,43 @@ function Dashboard() {
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
           <Link
             key={kpi.label}
             to={kpi.to}
-            className="group min-w-0 rounded-xl border bg-surface p-5 shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
+            className={cn(
+              "group relative min-w-0 overflow-hidden rounded-xl border bg-surface p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
+              kpi.tone === "warning" && "border-warning/25",
+            )}
           >
-            <div className="flex items-center justify-between text-[12px] text-muted-foreground">
-              <span>{kpi.label}</span>
-              <kpi.icon className={cn("size-4", kpi.tone === "warning" && "text-warning")} />
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary/70 to-transparent" />
+            <div className="flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
+              <span className="font-medium">{kpi.label}</span>
+              <span
+                className={cn(
+                  "grid size-8 place-items-center rounded-lg bg-primary/10 text-primary",
+                  kpi.tone === "warning" && "bg-warning/10 text-warning",
+                )}
+              >
+                <kpi.icon className="size-4" />
+              </span>
             </div>
-            <div className="mt-3 text-[28px] font-semibold leading-none tracking-tight">
+            <div className="mt-3 text-[26px] font-semibold leading-none tracking-[-0.035em]">
               <AnimatedNumber value={kpi.value} />
               {kpi.suffix && (
                 <span className="font-mono text-base text-muted-foreground">{kpi.suffix}</span>
               )}
             </div>
-            <div className="mt-2 flex items-center justify-between text-[12px]">
+            <div className="mt-2.5 flex items-center justify-between text-[12px]">
               <span className="text-muted-foreground">{kpi.sub}</span>
-              <ArrowRight className="size-3.5 opacity-0 group-hover:opacity-100" />
+              <ArrowRight className="size-3.5 text-primary opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
             </div>
           </Link>
         ))}
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <Panel title="Zone status map">
             {zones.data?.length ? (

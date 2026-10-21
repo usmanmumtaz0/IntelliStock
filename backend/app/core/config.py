@@ -49,7 +49,37 @@ class Settings(BaseSettings):
     ALERT_ESCALATION_SECONDS: int = Field(default=900, ge=60)
     CV_MODEL_PATH: str = ""
     CV_MODEL_MANIFEST: str = ""
-    CV_DEVICE: str = "cpu"
+    CV_DETECTOR: Literal["yolov8"] = "yolov8"
+    CV_DEVICE: str = "auto"
+    CV_CONFIDENCE_THRESHOLD: float = Field(default=0.40, ge=0.01, le=1.0)
+    CV_IMAGE_SIZE: int = Field(default=640, ge=320, le=1920)
+    CV_NMS_IOU_THRESHOLD: float = Field(default=0.45, ge=0.01, le=1.0)
+    CV_MAX_DETECTIONS: int = Field(default=300, ge=1, le=5000)
+    CV_IDENTITY_MIN_CONFIDENCE: float = Field(default=0.65, ge=0.01, le=1.0)
+    CV_OCR_ENABLED: bool = False
+    CV_OCR_LANGUAGE: str = "en"
+    CV_OCR_VERSION: str = "PP-OCRv6"
+    CV_OCR_DEVICE: str = "cpu"
+    CV_OCR_MIN_CONFIDENCE: float = Field(default=0.55, ge=0.0, le=1.0)
+    CV_OCR_MATCH_MIN_CONFIDENCE: float = Field(default=0.72, ge=0.0, le=1.0)
+    CV_OCR_MATCH_MIN_MARGIN: float = Field(default=0.10, ge=0.0, le=1.0)
+    CV_EMBEDDING_ENABLED: bool = False
+    CV_EMBEDDING_MODEL_PATH: str = ""
+    CV_EMBEDDING_DEVICE: str = "cpu"
+    CV_REFERENCE_IMAGE_ROOT: str = str(BACKEND_DIR / "media" / "product-references")
+    CV_RETRIEVAL_MIN_CONFIDENCE: float = Field(default=0.82, ge=-1.0, le=1.0)
+    CV_RETRIEVAL_MIN_MARGIN: float = Field(default=0.05, ge=0.0, le=2.0)
+    CV_MAX_REFERENCE_IMAGES: int = Field(default=500, ge=1, le=10000)
+    CV_EVIDENCE_REFRESH_SHARPNESS_RATIO: float = Field(default=1.20, ge=1.0, le=10.0)
+    CV_IDENTITY_CACHE_ROOT: str = str(BACKEND_DIR / "media" / "model-cache")
+    VIDEO_STORAGE_ROOT: str = str(BACKEND_DIR / "media" / "video-jobs")
+    VIDEO_MAX_UPLOAD_BYTES: int = Field(default=500 * 1024 * 1024, ge=1024 * 1024)
+    IMAGE_MAX_UPLOAD_BYTES: int = Field(default=25 * 1024 * 1024, ge=1024 * 1024)
+    VIDEO_MAX_FRAMES: int = Field(default=300, ge=1, le=10000)
+    VIDEO_MAX_DURATION_SECONDS: int = Field(default=900, ge=1, le=86400)
+    VIDEO_PREVIEW_FRAMES: int = Field(default=12, ge=1, le=100)
+    VIDEO_WORKER_POLL_SECONDS: float = Field(default=1.0, ge=0.1, le=30)
+    VIDEO_ALLOWED_CAMERA_HOSTS: str = ""
 
     # Credentials never enable outbound delivery by themselves.
     # AI routing defaults to local; SMTP requires explicit opt-in; SMS is reserved.

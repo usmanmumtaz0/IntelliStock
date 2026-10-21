@@ -10,4 +10,7 @@ export const queryKeys = {
   cameras: ["cameras"] as const,
   agents: ["agents"] as const,
   health: ["health"] as const,
+  videoJobs: ["video-jobs"] as const,
+  detectorHealth: ["detector-health"] as const,
+  detectionReview: ["detection-review"] as const,
 };

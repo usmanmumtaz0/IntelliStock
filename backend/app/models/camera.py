@@ -12,7 +12,7 @@ class Camera(BaseModel):
 
     name = Column(String(255), nullable=False, index=True)
     location = Column(String(255), nullable=False)
-    source_url = Column(String(512), nullable=True)  # RTSP, HTTP, or file path
+    source_url = Column(String(512), nullable=True)  # webcam://0, RTSP, or HTTP
     fps = Column(Integer, default=2, nullable=False)  # Frames per second sampling rate
     offline_timeout_seconds = Column(Integer, default=30, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)

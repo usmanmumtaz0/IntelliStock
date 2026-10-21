@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 
-from app.api import agents, alert_api, audit_api, auth, cameras, dashboard, events, health_api, inventory, inventory_history, products, zones
+from app.api import agents, alert_api, audit_api, auth, cameras, dashboard, events, health_api, inventory, inventory_history, products, video_jobs, zones
 from app.api.websocket import router as ws_router
 from app.core.config import settings
 from app.core.health import check_database, check_redis
@@ -118,7 +118,9 @@ async def invalid_alert_transition(_request: Request, exc: InvalidAlertTransitio
 @app.middleware("http")
 async def private_chat_cache_policy(request: Request, call_next: Callable):
     response = await call_next(request)
-    if request.url.path == "/api/v1/chat" or request.url.path.startswith("/api/v1/chat/"):
+    if (request.url.path == "/api/v1/chat" or request.url.path.startswith("/api/v1/chat/")
+            or request.url.path == "/api/v1/video-jobs"
+            or request.url.path.startswith("/api/v1/video-jobs/")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Pragma"] = "no-cache"
         response.headers["Vary"] = "Authorization"
@@ -151,6 +153,7 @@ app.include_router(operational_requests.router, dependencies=protected)
 app.include_router(events.router, dependencies=protected)
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(agents.router, dependencies=protected)
+app.include_router(video_jobs.router, dependencies=protected)
 app.include_router(ws_router)
 
 
