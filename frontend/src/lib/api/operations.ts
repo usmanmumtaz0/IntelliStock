@@ -66,6 +66,19 @@ export const operations = {
       method: id ? "PUT" : "POST",
       body: JSON.stringify(input),
     }),
+  updateProductThreshold: (id: string, lowStockThreshold: number) =>
+    apiRequest<ProductDto>(`/products/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify({ low_stock_threshold: lowStockThreshold }),
+    }),
+  checkoutInventory: (
+    id: string,
+    input: { quantity: number; reason?: string; expected_updated_at: string },
+  ) =>
+    apiRequest<InventoryDto>(`/inventory/${encodeURIComponent(id)}/checkout`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   correctInventory: (
     id: string,
     input: { quantity: number; reason: string; expected_updated_at: string },

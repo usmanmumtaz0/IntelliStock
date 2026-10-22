@@ -2,8 +2,37 @@
 
 > Update this file the moment a task is finished. This is the single source of truth for "where did I leave off" — it's how work resumes cleanly across sessions and across logins, since it lives in the repo, not in chat memory.
 
-**Currently On:** Role-routed operational requests are complete: Staff requests go to Managers, Manager escalations go to Admins, Admins cannot submit, and self-review is denied. Authenticated browser acceptance, licensed DINOv2 SKU references, PostgreSQL concurrency acceptance and Redis remain open.
-**Last Updated:** Oct 21, 2026 | 316 backend tests, 40 frontend tests, TypeScript, lint and production frontend build passed
+**Currently On:** Image/video uploads use durable storage-affine processing, safe failed-job retry and media-specific status messages. The supplied model's 25 trained classes map to audited catalog products. Real shelf assignment/calibration, held-out accuracy acceptance, authenticated browser acceptance, PostgreSQL concurrency acceptance and Redis remain open.
+**Last Updated:** Oct 22, 2026 | 324 backend tests passed; 42 frontend tests passed; three affected JPG jobs completed through real YOLO/OCR processing
+
+
+### Storage-affine image/video processing repair (Oct 22, 2026)
+
+- [x] Verified that JPG/PNG/WebP already use a one-frame image path and MP4/AVI/MOV use bounded sequential video sampling; Redis is not the durable video-job queue.
+- [x] Identified competing workers connected to the same Supabase job table with different local media visibility. Added an opaque marker on each shared media volume and an internal storage-affine queue stage, while preserving the public `queued` API/UI state.
+- [x] Added an authorized failed-job retry endpoint that preserves the source, clears partial frame/detection evidence, prevents duplicate results and rejects retries when the source is gone.
+- [x] Added media-specific missing-source errors, worker media-root startup diagnostics and accurate queued/processing/failed/cancelled zero-frame UI messages.
+- [x] Retried all three affected `download (2).jpg` jobs through the real configured YOLO/OCR pipeline. Each completed with one persisted frame and one detection; the obsolete missing-video error is cleared.
+- Verification: full backend suite passed 324 tests; frontend passed 42 tests, TypeScript, production build and lint with 0 errors/10 existing Fast Refresh warnings; diff whitespace passed.
+
+
+### Swagger JWT authorization (Oct 22, 2026)
+
+- [x] Added FastAPI `HTTPBearer` metadata to the existing database-backed JWT dependency, exposing the Swagger **Authorize** button without weakening signature, expiry, activation, session-version or RBAC checks.
+- [x] Kept `POST /api/v1/auth/login` public while protected endpoints advertise `BearerAuth`; Swagger automatically adds the `Bearer` prefix to the pasted access token.
+- [x] Added role-switching instructions to the API reference and regression coverage for the OpenAPI security scheme.
+- Verification: focused authentication/RBAC suite passed 24 tests; full backend suite passed 319 tests; the running `/openapi.json` exposes `BearerAuth` on inventory and no security requirement on login.
+
+
+### Trained model catalog integration (Oct 22, 2026)
+
+- [x] Assigned stable reviewed SKUs to all 25 checkpoint classes and added explicit brand, category, variant and package-size metadata.
+- [x] Added an audited, idempotent catalog synchronizer that creates missing products, preserves exact matches and refuses conflicting existing SKUs without partial commits.
+- [x] Applied the synchronizer to the configured Supabase catalog: 25 products created on the first run and 25 preserved on the second run. All class IDs 0-24 resolve to product IDs; total catalog count is 57.
+- [x] Configured the ignored local `.env` to load the reviewed manifest. Existing inventory remained at 31 rows; no stock quantities, shelf zones or class-to-shelf mappings were changed.
+- [x] Verified the running API reports a configured, checksum-verified 25-class manifest on CPU and started the hidden single-concurrency video worker (PID 10616), so new uploads no longer remain queued while this process is running.
+- [x] Documented activation and added regression coverage for completeness, auditing, idempotency and collision safety.
+- Verification: focused model/catalog/identity/video suite passed 35 tests; full backend suite passed 318 tests; checkpoint SHA-256 and embedded 25-class metadata validation passed on CPU. Detection accuracy remains unverified until representative labelled media is evaluated.
 
 
 ### Role-routed request workflow (Oct 21, 2026)

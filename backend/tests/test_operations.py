@@ -6,10 +6,12 @@ from uuid import uuid4
 import pytest
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database import SessionLocal
-from app.models import Camera, Product, ShelfZone, Inventory, ZoneProductMapping, OutboxEvent
+from app.models import Alert, Camera, Product, ShelfZone, Inventory, ZoneProductMapping, OutboxEvent
 from app.models.user import User, UserRole
 from app.models.inventory import InventoryStatus
-from app.models.inventory_history import InventoryHistory
+from app.models.inventory_history import InventoryHistory, InventoryChangeType
+from app.models.alert import AlertStatus, AlertType
+from app.workers.events import process_rules
 from app.models.audit_log import AuditLog
 from app.schemas.zone import ZoneInput
 from app.api.inventory import CorrectionRequest
@@ -104,6 +106,47 @@ def test_manual_correction_audit_history_and_conflict(client, ops):
         assert db.query(AuditLog).filter_by(resource_id=ops["inventory"]).count() == 1
 
 
+def test_checkout_decrements_stock_and_generates_threshold_alert(client, ops):
+    path = f"/api/v1/inventory/{ops['inventory']}"
+    current = client.get(path, headers=ops["headers"]["manager"]).json()
+    payload = {"quantity": 2, "reason": "Customer checkout",
+               "expected_updated_at": current["updated_at"]}
+    assert client.post(path + "/checkout", headers=ops["headers"]["staff"], json=payload).status_code == 403
+
+    response = client.post(path + "/checkout", headers=ops["headers"]["manager"], json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_quantity"] == 3
+    assert response.json()["status"] == "adequate"
+    process_rules()
+    with SessionLocal() as db:
+        history = db.query(InventoryHistory).filter_by(
+            zone_id=ops["zone"], change_type=InventoryChangeType.SALE
+        ).one()
+        assert (history.previous_quantity, history.new_quantity, history.quantity_delta) == (5, 3, -2)
+        assert db.query(Alert).filter_by(zone_id=ops["zone"], product_id=ops["product"]).count() == 0
+
+    current = client.get(path, headers=ops["headers"]["manager"]).json()
+    response = client.post(path + "/checkout", headers=ops["headers"]["manager"], json={
+        "quantity": 1, "expected_updated_at": current["updated_at"]
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["current_quantity"] == 2
+    assert response.json()["status"] == "low_stock"
+    process_rules()
+    with SessionLocal() as db:
+        alert = db.query(Alert).filter_by(zone_id=ops["zone"], product_id=ops["product"]).one()
+        assert alert.alert_type == AlertType.LOW_STOCK
+        assert alert.status == AlertStatus.OPEN
+        assert alert.current_quantity == 2
+
+    current = client.get(path, headers=ops["headers"]["manager"]).json()
+    response = client.post(path + "/checkout", headers=ops["headers"]["manager"], json={
+        "quantity": 3, "expected_updated_at": current["updated_at"]
+    })
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Checkout quantity exceeds available stock"
+
+
 def test_correction_rollback_keeps_inventory_history_outbox_atomic(ops):
     with SessionLocal() as db:
         count = db.query(OutboxEvent).count()
@@ -122,12 +165,21 @@ def test_shelf_configuration_permissions_and_safety(client, ops):
     assert response.status_code == 201, response.text
     config = response.json()
     assert config["restart_required"] and config["products"][0]["allow_empty"] is False
+    with SessionLocal() as db:
+        initialized = db.query(Inventory).filter_by(
+            zone_id=config["id"], product_id=ops["product"]
+        ).one()
+        assert initialized.quantity_estimate == 0
+        assert initialized.status == InventoryStatus.UNKNOWN
     assert client.post("/api/v1/zones", json=data, headers=ops["headers"]["admin"]).status_code == 409
     assert client.get(f"/api/v1/zones/{config['id']}/configuration", headers=ops["headers"]["admin"]).json()["polygon"] == data["polygon"]
     data["name"] = "Changed shelf"
     assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["admin"]).status_code == 200
     with SessionLocal() as db:
         assert db.query(AuditLog).filter_by(resource_id=config["id"]).count() == 2
+        assert db.query(Inventory).filter_by(
+            zone_id=config["id"], product_id=ops["product"]
+        ).count() == 1
         db.get(Camera, ops["camera"]).is_active = True; db.commit()
     assert client.put(f"/api/v1/zones/{config['id']}", json=data, headers=ops["headers"]["admin"]).status_code == 409
 

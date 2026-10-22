@@ -29,6 +29,52 @@ def stock_changed(db, inv, event_id=None, confidence=None):
         "status": inv.status.value}, event_id=event_id)
 
 
+def checkout_inventory(db, inventory_id, data, user):
+    """Subtract sold units from committed stock with locking and an audit trail."""
+    zone_id = db.query(Inventory.zone_id).filter_by(id=inventory_id).scalar()
+    if zone_id is None:
+        raise HTTPException(404, "Inventory not found")
+    db.query(ShelfZone).filter_by(id=zone_id).with_for_update().one()
+    inv = db.query(Inventory).filter_by(id=inventory_id).populate_existing().with_for_update().one()
+    expected = data.expected_updated_at
+    if expected.tzinfo:
+        expected = expected.astimezone(timezone.utc).replace(tzinfo=None)
+    if inv.updated_at != expected:
+        raise HTTPException(409, "Inventory changed. Refresh and review the current count before retrying.")
+    if inv.status in (InventoryStatus.UNKNOWN, InventoryStatus.DETECTION_UNCERTAIN):
+        raise HTTPException(409, "Record a verified starting quantity before checking out this product")
+    if data.quantity > inv.quantity_estimate:
+        raise HTTPException(409, "Checkout quantity exceeds available stock")
+
+    previous = inv.quantity_estimate
+    updated = previous - data.quantity
+    event_id = str(uuid4())
+    inv.quantity_estimate = updated
+    inv.status = stock_state(updated, inv.product.low_stock_threshold)
+    inv.observations_count = 0
+    inv.updated_at = datetime.utcnow()
+    reason = data.reason or f"Checked out {data.quantity} unit(s)"
+    db.add(InventoryHistory(
+        zone_id=inv.zone_id, product_id=inv.product_id,
+        previous_quantity=previous, new_quantity=updated, quantity_delta=-data.quantity,
+        change_type=InventoryChangeType.SALE, confidence=0, source_system="checkout",
+        actor_user_id=user.id, reason=reason, related_event_id=event_id,
+    ))
+    db.add(InventoryEvent(
+        id=event_id, event_type=EventType.STOCK_UPDATED, camera_id=inv.zone.camera_id,
+        zone_id=inv.zone_id, product_id=inv.product_id, previous_state=f"qty={previous}",
+        new_state=f"qty={updated}", confidence=0,
+        extra_data=json.dumps({
+            "previous_quantity": previous, "new_quantity": updated,
+            "checkout_quantity": data.quantity, "source": "checkout",
+        }),
+    ))
+    audit(db, user, "checkout", "inventory", inv.id, {"quantity": previous},
+          {"quantity": updated, "checkout_quantity": data.quantity, "reason": reason})
+    stock_changed(db, inv, event_id, confidence=0)
+    return inv
+
+
 def correct_inventory(db, inventory_id, data, user):
     # Match the vision writer's lock order: shelf, then inventory.
     zone_id = db.query(Inventory.zone_id).filter_by(id=inventory_id).scalar()

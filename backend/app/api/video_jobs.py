@@ -46,6 +46,8 @@ from app.services.video_storage import (
     resolve_storage_key,
     safe_extension,
     safe_image_extension,
+    storage_node_id,
+    storage_queue_stage,
 )
 
 router = APIRouter(prefix="/api/v1/video-jobs", tags=["video processing"])
@@ -63,7 +65,16 @@ def _get_job(db: Session, job_id: str, user) -> VideoProcessingJob:
 
 
 def _job_response(job: VideoProcessingJob) -> VideoJobResponse:
-    return VideoJobResponse.model_validate(job)
+    response = VideoJobResponse.model_validate(job)
+    if job.status == VideoJobStatus.CANCELLED and job.stage.startswith("storage_queued:"):
+        response.status = VideoJobStatus.QUEUED
+        response.stage = "queued"
+    if response.summary and "_storage_node_id" in response.summary:
+        response.summary = {
+            key: value for key, value in response.summary.items()
+            if key != "_storage_node_id"
+        }
+    return response
 
 
 def _frame_response(job_id: str, frame: VideoFrame) -> VideoFrameResponse:
@@ -183,6 +194,7 @@ async def upload_video(
                                confidence_threshold, image_size, preview_only)
     job = VideoProcessingJob(
         owner_user_id=user.id, source_kind=VideoSourceKind.UPLOAD,
+        status=VideoJobStatus.CANCELLED, stage=storage_queue_stage(),
         original_filename=Path(video.filename or "video").name[:255],
         content_type=(video.content_type or "application/octet-stream")[:100],
         tracking_enabled=tracking_enabled, preview_only=preview_only,
@@ -209,6 +221,7 @@ async def upload_video(
         job.source_fps = fps
         job.total_frames = total
         job.source_duration_ms = duration
+        job.summary = {"_storage_node_id": storage_node_id()}
         audit(db, user, "create", "video_processing_job", job.id,
               new={"source_kind": "upload", "preview_only": preview_only})
         db.commit()
@@ -248,6 +261,7 @@ async def upload_image(
     )
     job = VideoProcessingJob(
         owner_user_id=user.id, source_kind=VideoSourceKind.UPLOAD,
+        status=VideoJobStatus.CANCELLED, stage=storage_queue_stage(),
         original_filename=Path(image.filename or "image").name[:255],
         content_type=(image.content_type or "application/octet-stream")[:100],
         tracking_enabled=False, preview_only=False,
@@ -274,6 +288,7 @@ async def upload_image(
         job.total_frames = 1
         job.source_duration_ms = 0
         job.summary = {"source_width": width, "source_height": height,
+                       "_storage_node_id": storage_node_id(),
                        "inventory_effect": "review_only"}
         audit(db, user, "create", "video_processing_job", job.id,
               new={"source_kind": "image", "width": width, "height": height})
@@ -310,8 +325,10 @@ def create_camera_job(camera_id: str, options: CameraVideoJobCreate,
     )
     job = VideoProcessingJob(
         owner_user_id=user.id, camera_id=camera.id,
+        status=VideoJobStatus.CANCELLED, stage=storage_queue_stage(),
         source_kind=VideoSourceKind.CAMERA, tracking_enabled=options.tracking_enabled,
-        preview_only=options.preview_only, idempotency_key=idempotency_key, **bounded,
+        preview_only=options.preview_only, idempotency_key=idempotency_key,
+        summary={"_storage_node_id": storage_node_id()}, **bounded,
     )
     db.add(job)
     db.flush()
@@ -475,14 +492,63 @@ def annotated_frame(job_id: str, frame_id: str, db: Session = Depends(get_db),
 @router.post("/{job_id}/cancel", response_model=VideoJobCancelResponse)
 def cancel_job(job_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
     job = _get_job(db, job_id, user)
+    storage_queued = (
+        job.status == VideoJobStatus.CANCELLED
+        and job.stage.startswith("storage_queued:")
+    )
     if job.status in {VideoJobStatus.COMPLETED, VideoJobStatus.FAILED,
-                      VideoJobStatus.CANCELLED}:
+                      VideoJobStatus.CANCELLED} and not storage_queued:
         raise HTTPException(409, "Video job is already in a terminal state")
     job.cancel_requested = True
-    if job.status == VideoJobStatus.QUEUED:
+    if job.status == VideoJobStatus.QUEUED or storage_queued:
         job.status = VideoJobStatus.CANCELLED
         job.stage = "cancelled"
     audit(db, user, "cancel", "video_processing_job", job.id)
     db.commit()
     return VideoJobCancelResponse(id=job.id, status=job.status,
                                   cancel_requested=job.cancel_requested)
+
+
+@router.post("/{job_id}/retry", response_model=VideoJobResponse,
+             status_code=status.HTTP_202_ACCEPTED)
+def retry_job(job_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Safely requeue a failed job without duplicating persisted evidence."""
+    job = _get_job(db, job_id, user)
+    if job.status != VideoJobStatus.FAILED:
+        raise HTTPException(409, "Only failed video-processing jobs can be retried")
+    if job.source_kind == VideoSourceKind.UPLOAD:
+        try:
+            source = resolve_storage_key(job.storage_key or "")
+        except ValueError as exc:
+            raise HTTPException(409, "The uploaded source reference is invalid; upload the file again") from exc
+        if not source.is_file():
+            raise HTTPException(
+                409,
+                "The uploaded source is no longer available; upload the file again",
+            )
+
+    # A failed run may have committed partial frames. Remove database evidence
+    # before requeueing; annotated files use deterministic names and are safely
+    # overwritten by the next run without touching the uploaded source.
+    db.query(VideoDetection).filter(VideoDetection.job_id == job.id).delete(
+        synchronize_session=False
+    )
+    db.query(VideoFrame).filter(VideoFrame.job_id == job.id).delete(
+        synchronize_session=False
+    )
+    job.status = VideoJobStatus.CANCELLED
+    job.stage = storage_queue_stage()
+    job.cancel_requested = False
+    job.frames_processed = 0
+    job.detection_instances = 0
+    job.frames_with_detections = 0
+    job.unique_tracked_objects = None
+    job.error_message = None
+    job.started_at = None
+    job.completed_at = None
+    job.summary = {**(job.summary or {}), "_storage_node_id": storage_node_id()}
+    audit(db, user, "retry", "video_processing_job", job.id,
+          new={"source_kind": job.source_kind.value})
+    db.commit()
+    db.refresh(job)
+    return _job_response(job)

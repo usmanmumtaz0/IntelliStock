@@ -33,4 +33,26 @@ describe("operational API contracts", () => {
     expect(url).toContain("/inventory/inventory-zone-2/corrections");
     expect(JSON.parse(String(request.body))).toEqual(input);
   });
+  it("sends checkout quantity with the concurrency version", async () => {
+    const fetchMock = mockRequest();
+    const input = {
+      quantity: 2,
+      reason: "Customer checkout",
+      expected_updated_at: "2026-10-10T12:00:00",
+    };
+    await operations.checkoutInventory("inventory-zone-2", input);
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/inventory/inventory-zone-2/checkout");
+    expect(request.method).toBe("POST");
+    expect(JSON.parse(String(request.body))).toEqual(input);
+  });
+
+  it("updates the product threshold independently", async () => {
+    const fetchMock = mockRequest();
+    await operations.updateProductThreshold("product-1", 5);
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/products/product-1");
+    expect(request.method).toBe("PUT");
+    expect(JSON.parse(String(request.body))).toEqual({ low_stock_threshold: 5 });
+  });
 });

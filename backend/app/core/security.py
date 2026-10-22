@@ -6,6 +6,7 @@ from typing import Optional
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -19,6 +20,12 @@ from app.repositories.user_repository import UserRepository
 # New hashes use Argon2id. Bcrypt remains available only to verify existing rows;
 # successful legacy logins are transparently upgraded to Argon2id.
 pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    bearerFormat="JWT",
+    scheme_name="BearerAuth",
+    description="Paste the JWT access_token returned by POST /api/v1/auth/login.",
+)
 
 
 class TokenData(BaseModel):
@@ -139,14 +146,16 @@ def get_user_for_token(db: Session, token: str) -> Optional[User]:
     return user
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
     """Return the active database user represented by a bearer token."""
-    auth_header = request.headers.get("authorization", "")
-    scheme, _, token = auth_header.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
+    if credentials is None or credentials.scheme.lower() != "bearer":
         raise _authentication_error("Authentication required")
 
-    user = get_user_for_token(db, token.strip())
+    user = get_user_for_token(db, credentials.credentials.strip())
     if user is None:
         raise _authentication_error()
 

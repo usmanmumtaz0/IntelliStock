@@ -5,6 +5,10 @@ The API validates and stores the source, creates a durable database job, and ret
 worker samples frames sequentially, runs the configured YOLO model, applies ByteTrack when enabled, writes
 annotated evidence, and records every frame and detection in PostgreSQL.
 
+Uploaded jobs are storage-affine. The media volume contains an opaque node marker, and newly queued jobs are
+claimed only by workers that can see that same volume. The API still reports the public state as `queued`.
+This prevents an older worker connected to the same database on another machine from claiming a local file.
+
 ## Setup
 
 Apply the latest Alembic migrations, then configure the settings in `.env.example`. At minimum,
@@ -53,6 +57,10 @@ record and are never returned by the video-job API.
 ## Troubleshooting
 
 - A job that remains `queued` usually means `python -m app.workers.video_jobs` is not running.
+- The worker logs its resolved `media_root` at startup. The API and worker must resolve the same
+  `VIDEO_STORAGE_ROOT`; Docker deployments must mount that directory into both services.
+- A failed job can be retried from the results panel while its validated uploaded source remains
+  available. Retry clears partial database evidence before reprocessing, so it does not duplicate detections.
 - `Configured trained model weights are missing` means `CV_MODEL_PATH` is wrong for the worker process.
 - An unreadable-video error means the installed OpenCV/FFmpeg build cannot decode the container or codec.
 - Product IDs remain empty until an approved model manifest maps every relevant class to an existing SKU.

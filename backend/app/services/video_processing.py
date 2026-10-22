@@ -191,7 +191,11 @@ def _job_source(db: Session, job: VideoProcessingJob) -> str:
     if job.source_kind == VideoSourceKind.UPLOAD:
         path = resolve_storage_key(job.storage_key or "")
         if not path.is_file():
-            raise ValueError("Uploaded source video is missing")
+            media_kind = "image" if (job.content_type or "").startswith("image/") else "video"
+            raise ValueError(
+                f"Uploaded {media_kind} source is unavailable to the processing worker. "
+                "Verify that the API and worker share VIDEO_STORAGE_ROOT, then retry the job."
+            )
         return str(path)
     from app.models.camera import Camera
     camera = db.get(Camera, job.camera_id)

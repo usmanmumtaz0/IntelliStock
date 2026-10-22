@@ -46,6 +46,19 @@ Send the token on subsequent requests:
 Authorization: Bearer signed-jwt
 ```
 
+### Swagger authorization
+
+1. Open `http://127.0.0.1:8000/docs` and run `POST /api/v1/auth/login`.
+2. Copy only the returned `access_token` value.
+3. Select **Authorize** at the top right of Swagger UI.
+4. Paste the token into **BearerAuth**. Swagger adds the `Bearer` prefix automatically.
+5. Run `GET /api/v1/auth/verify` to confirm the current role and permissions.
+6. Select **Authorize**, then **Logout**, before repeating the test with another role.
+
+Missing or invalid authentication returns `401`. A valid token without the required
+permission returns `403`. Do not paste the JSON response or the text `Bearer`; paste
+only the JWT access-token value into the Swagger dialog.
+
 Authentication failures return the same `401` message for unknown emails, wrong passwords, and inactive users. Missing, expired, malformed, or tampered tokens also return `401`. An authenticated user without the required role receives `403`.
 
 ### Role policy
@@ -109,7 +122,7 @@ The body remains a JSON array for backward compatibility. Pagination metadata is
 ]
 ```
 
-`current_quantity` is the PostgreSQL-backed trusted quantity and is changed only by reconciliation. `verified` is true only when the record is in a stable inventory state (`adequate`, `low_stock`, or `out_of_stock`), has at least the minimum reconciliation observations, meets the reconciliation confidence threshold, and has a recorded observation time.
+`current_quantity` is the PostgreSQL-backed committed quantity. It can change through trusted reconciliation, an audited physical-count correction, or an audited checkout transaction. `verified` is true only when camera evidence meets the reconciliation requirements; manual changes remain committed and audited without being labeled camera-verified.
 
 `pending_quantity` is a differing latest observation from the transient Redis window. It is nullable, is not authoritative, and does not replace `current_quantity`. Missing product relationships produce nullable `sku`, `name`, and `threshold` rather than invented values.
 
@@ -121,7 +134,23 @@ Other inventory routes:
 - `GET /inventory/zone/{zone_id}`
 - `GET /inventory/product/{product_id}`
 - `GET /inventory/status/low-stock`
+- `POST /inventory/{inventory_id}/corrections` (manager/admin; set a physical or starting count)
+- `POST /inventory/{inventory_id}/checkout` (manager/admin; subtract sold units)
 - `POST /inventory/reconcile` (manager/admin; testing and integration endpoint)
+
+Checkout request:
+
+```json
+{
+  "quantity": 2,
+  "reason": "Customer checkout",
+  "expected_updated_at": "2026-10-22T12:00:00Z"
+}
+```
+
+`quantity` is the number of units sold, not the resulting stock. The server locks the shelf and inventory row, rejects stale versions and quantities above available stock, records a `SALE` history entry, and subtracts the units atomically. `reason` is optional. Inventory in `unknown` or `detection_uncertain` state requires a physical starting count before checkout.
+
+Every committed correction, checkout, or accepted reconciliation publishes a durable `stock_updated` event. The event worker creates or refreshes one active low-stock/out-of-stock alert when the resulting quantity is at or below the configured product threshold. The notification worker queues and sends that alert only when `NOTIFICATIONS_ENABLED=true` and the SMTP/recipient settings are complete. Repeated stock events refresh the active alert instead of sending duplicate alert episodes.
 
 ## Frontend field mapping
 

@@ -37,6 +37,29 @@ def correct_inventory(inventory_id: str, data: CorrectionRequest,
     return serialize_inventory(inv)
 
 
+class CheckoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    quantity: int = Field(ge=1, le=1000000, strict=True)
+    expected_updated_at: datetime
+    reason: str | None = Field(default=None, min_length=5, max_length=255)
+
+
+@router.post("/{inventory_id}/checkout", response_model=InventoryResponse)
+def checkout_stock(
+    inventory_id: str,
+    data: CheckoutRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from app.services.operations import checkout_inventory
+    from app.services.observation_window import get_observation_window
+
+    inv = checkout_inventory(db, inventory_id, data, user)
+    db.commit()
+    get_observation_window(inv.zone.camera_id, inv.zone_id, inv.product_id).clear()
+    return serialize_inventory(inv)
+
+
 class ReconcileRequest(BaseModel):
     """Request to reconcile an observation."""
 

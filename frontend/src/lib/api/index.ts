@@ -119,6 +119,10 @@ export const api = {
       `/video-jobs/${encodeURIComponent(id)}/cancel`,
       { method: "POST" },
     ),
+  retryVideoJob: (id: string) =>
+    apiRequest<VideoJobDto>(`/video-jobs/${encodeURIComponent(id)}/retry`, {
+      method: "POST",
+    }),
   createCameraVideoJob: (cameraId: string, options: Record<string, unknown>) =>
     apiRequest<VideoJobDto>(`/video-jobs/cameras/${encodeURIComponent(cameraId)}`, {
       method: "POST",

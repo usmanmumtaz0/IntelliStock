@@ -190,6 +190,15 @@ function VideoProcessing() {
     mutationFn: (id: string) => api.cancelVideoJob(id),
     onSuccess: () => void refresh(),
   });
+  const retry = useMutation({
+    mutationFn: (id: string) => api.retryVideoJob(id),
+    onSuccess: (job) => {
+      setSelectedId(job.id);
+      setMessage("Retry queued. The worker will process the preserved source file.");
+      void refresh();
+    },
+    onError: (error) => setMessage(error instanceof ApiError ? error.message : "Retry failed"),
+  });
   const identify = useMutation({
     mutationFn: ({ detectionId, productId }: { detectionId: string; productId: string }) =>
       api.identifyDetection(detectionId, productId),
@@ -483,7 +492,16 @@ function VideoProcessing() {
         <Panel
           title={selected ? (selected.original_filename ?? "Camera capture") : "Job results"}
           action={
-            selected && !terminal.has(selected.status) ? (
+            selected?.status === "failed" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={retry.isPending}
+                onClick={() => retry.mutate(selected.id)}
+              >
+                <RefreshCw /> {retry.isPending ? "Queueing…" : "Retry"}
+              </Button>
+            ) : selected && !terminal.has(selected.status) ? (
               <Button size="sm" variant="outline" onClick={() => cancel.mutate(selected.id)}>
                 <Ban /> Cancel
               </Button>
@@ -521,9 +539,25 @@ function VideoProcessing() {
                   <FrameCard key={frame.id} frame={frame} />
                 ))}
               </div>
-              {selected.frames_processed === 0 && (
+              {selected.frames_processed === 0 && selected.status === "queued" && (
                 <p className="mt-5 text-sm text-muted-foreground">
-                  Waiting for sampled frames. Start the video worker if this remains queued.
+                  Queued for processing. Start the vision worker if this status does not advance.
+                </p>
+              )}
+              {selected.frames_processed === 0 && selected.status === "processing" && (
+                <p className="mt-5 text-sm text-muted-foreground">
+                  The worker is opening and processing the source. Results will appear here.
+                </p>
+              )}
+              {selected.frames_processed === 0 && selected.status === "failed" && (
+                <p className="mt-5 text-sm text-muted-foreground">
+                  No evidence frames were saved. Review the failure above, then retry if the source
+                  is still available.
+                </p>
+              )}
+              {selected.frames_processed === 0 && selected.status === "cancelled" && (
+                <p className="mt-5 text-sm text-muted-foreground">
+                  This job was cancelled before any evidence frame was saved.
                 </p>
               )}
             </>

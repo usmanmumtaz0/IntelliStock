@@ -1,6 +1,6 @@
 """Private media storage for video jobs; only opaque keys leave this module."""
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.core.config import BACKEND_DIR, settings
 
@@ -20,6 +20,28 @@ def storage_root() -> Path:
     root = configured if configured.is_absolute() else BACKEND_DIR.parent / configured
     root.mkdir(parents=True, exist_ok=True)
     return root.resolve()
+
+
+def storage_node_id() -> str:
+    """Return a stable opaque ID shared only by processes using this media volume."""
+    marker = storage_root() / ".storage-node-id"
+    try:
+        return str(UUID(marker.read_text(encoding="ascii").strip()))
+    except FileNotFoundError:
+        value = str(uuid4())
+        try:
+            with marker.open("x", encoding="ascii") as stream:
+                stream.write(value)
+            return value
+        except FileExistsError:
+            return str(UUID(marker.read_text(encoding="ascii").strip()))
+    except (ValueError, OSError) as exc:
+        raise RuntimeError("Media storage node marker is invalid or unreadable") from exc
+
+
+def storage_queue_stage() -> str:
+    """Internal durable queue stage that legacy workers cannot claim."""
+    return f"storage_queued:{storage_node_id()}"
 
 
 def safe_extension(filename: str | None) -> str:

@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.database import SessionLocal
 from app.models.video_job import VideoJobStatus, VideoProcessingJob
 from app.services.video_processing import process_video_job
+from app.services.video_storage import storage_node_id, storage_queue_stage, storage_root
 
 logger = logging.getLogger(__name__)
 stopping = False
@@ -23,9 +24,11 @@ def _stop(_signum, _frame):
 def recover_interrupted_jobs(db):
     jobs = db.query(VideoProcessingJob).filter(
         VideoProcessingJob.status == VideoJobStatus.PROCESSING).all()
+    node_id = storage_node_id()
+    jobs = [job for job in jobs if (job.summary or {}).get("_storage_node_id") == node_id]
     for job in jobs:
-        job.status = VideoJobStatus.QUEUED
-        job.stage = "recovered_after_worker_restart"
+        job.status = VideoJobStatus.CANCELLED
+        job.stage = storage_queue_stage()
     if jobs:
         db.commit()
         logger.warning("Requeued %s interrupted video job(s)", len(jobs))
@@ -33,7 +36,8 @@ def recover_interrupted_jobs(db):
 
 def claim_next_job(db):
     job = (db.query(VideoProcessingJob)
-           .filter(VideoProcessingJob.status == VideoJobStatus.QUEUED,
+           .filter(VideoProcessingJob.status == VideoJobStatus.CANCELLED,
+                    VideoProcessingJob.stage == storage_queue_stage(),
                    VideoProcessingJob.cancel_requested.is_(False))
            .order_by(VideoProcessingJob.created_at)
            .with_for_update(skip_locked=True).first())
@@ -51,7 +55,10 @@ def main():
     signal.signal(signal.SIGTERM, _stop)
     with SessionLocal() as db:
         recover_interrupted_jobs(db)
-    logger.info("Video worker started with single inference concurrency")
+    logger.info(
+        "Video worker started with single inference concurrency; media_root=%s",
+        storage_root(),
+    )
     while not stopping:
         with SessionLocal() as db:
             job_id = claim_next_job(db)

@@ -53,7 +53,8 @@ register("GET", "inventory.read", "/inventory", "/inventory/{inventory_id}",
     "/inventory/{zone_id}/{product_id}/history", "/inventory/history/recent",
     "/inventory/history/by-type/{change_type}", "/zones/{zone_id}/inventory/history",
     "/inventory/depletion-rate", "/events", "/events/zone/{zone_id}", "/events/product/{product_id}")
-register("POST", "inventory.adjust_stock", "/inventory/{inventory_id}/corrections")
+register("POST", "inventory.adjust_stock", "/inventory/{inventory_id}/corrections",
+    "/inventory/{inventory_id}/checkout")
 register("POST", "diagnostics.observe", "/inventory/reconcile")
 register("GET", "products.read", "/products", "/products/{product_id}")
 register("POST", "products.create", "/products")
@@ -94,7 +95,7 @@ register("GET", "video_jobs.read", "/video-jobs", "/video-jobs/{job_id}",
     "/video-jobs/{job_id}/frames", "/video-jobs/{job_id}/frames/{frame_id}/image",
     "/video-jobs/model-health", "/video-jobs/review-queue")
 register("POST", "video_jobs.create", "/video-jobs", "/video-jobs/images",
-    "/video-jobs/{job_id}/cancel")
+    "/video-jobs/{job_id}/cancel", "/video-jobs/{job_id}/retry")
 register("POST", "video_jobs.camera", "/video-jobs/cameras/{camera_id}")
 register("POST", "video_jobs.review", "/video-jobs/detections/{detection_id}/identify")
 

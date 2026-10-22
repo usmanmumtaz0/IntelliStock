@@ -10,73 +10,208 @@ export function InventoryCorrection({ item }: { item: InventoryDto }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [snapshot, setSnapshot] = useState(item);
-  const save = useMutation({
+  const canAdjust = can("inventory.adjust_stock");
+  const canSetThreshold = can("thresholds.manage");
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    await queryClient.invalidateQueries({ queryKey: ["products"] });
+    await queryClient.invalidateQueries({ queryKey: ["alerts"] });
+  };
+
+  const correction = useMutation({
     mutationFn: (input: Parameters<typeof operations.correctInventory>[1]) =>
       operations.correctInventory(item.id, input),
     onSuccess: async (updated) => {
       setSnapshot(updated);
-      toast.success("Correction recorded with your account and reason");
-      await queryClient.invalidateQueries();
+      toast.success("Starting quantity recorded");
+      await refresh();
     },
   });
-  if (!can("inventory.adjust_stock")) return null;
+
+  const checkout = useMutation({
+    mutationFn: (input: Parameters<typeof operations.checkoutInventory>[1]) =>
+      operations.checkoutInventory(item.id, input),
+    onSuccess: async (updated, input) => {
+      setSnapshot(updated);
+      toast.success(`${input.quantity} unit${input.quantity === 1 ? "" : "s"} checked out`);
+      await refresh();
+    },
+  });
+
+  const threshold = useMutation({
+    mutationFn: (value: number) => operations.updateProductThreshold(item.product_id, value),
+    onSuccess: async (product) => {
+      toast.success(`Low-stock threshold set to ${product.low_stock_threshold}`);
+      await refresh();
+    },
+  });
+
+  if (!canAdjust && !canSetThreshold) return null;
+  const stale = item.updated_at !== snapshot.updated_at;
+  const checkoutBlocked =
+    !snapshot.updated_at ||
+    snapshot.current_quantity <= 0 ||
+    snapshot.status === "unknown" ||
+    snapshot.status === "detection_uncertain";
+
   return (
-    <form
-      className="space-y-3 rounded-md border p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const data = new FormData(event.currentTarget);
-        if (!snapshot.updated_at) return;
-        save.mutate({
-          quantity: Number(data.get("quantity")),
-          reason: String(data.get("reason")),
-          expected_updated_at: snapshot.updated_at,
-        });
-      }}
-    >
-      <h3 className="text-sm font-medium">Record a physical count</h3>
-      <p className="text-xs text-muted-foreground">
-        Audited manual correction, not camera verification. A later reconciled observation may
-        replace this count; this is not a persistent override.
-      </p>
-      <Field
-        key={snapshot.updated_at}
-        label="Correct quantity"
-        name="quantity"
-        type="number"
-        min={0}
-        max={1000000}
-        step={1}
-        required
-        defaultValue={snapshot.current_quantity}
-      />
-      <Field
-        label="Reason (required for the audit trail)"
-        name="reason"
-        required
-        minLength={5}
-        maxLength={255}
-      />
-      <OperationError error={save.error} />
-      <ActionButton type="submit" disabled={save.isPending || !item.updated_at}>
-        Record correction
-      </ActionButton>
-      {item.updated_at !== snapshot.updated_at && (
-        <p className="text-xs text-warning">
-          This record changed while the form was open. Review the latest count before saving.
+    <div className="space-y-4 rounded-xl border bg-surface-2/40 p-4">
+      <div>
+        <h3 className="text-sm font-semibold">Inventory controls</h3>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Set the starting count, record checkout sales, and keep the low-stock policy current.
+          Every change is audited.
         </p>
-      )}
-      {(save.isError || item.updated_at !== snapshot.updated_at) && (
-        <ActionButton
-          onClick={() => {
-            setSnapshot(item);
-            save.reset();
-            void queryClient.invalidateQueries();
+      </div>
+
+      {canSetThreshold && (
+        <form
+          className="space-y-3 rounded-lg border bg-background p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            threshold.mutate(Number(data.get("threshold")));
           }}
         >
-          Use latest count ({item.current_quantity})
-        </ActionButton>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Alert threshold
+          </h4>
+          <Field
+            key={item.threshold}
+            label="Generate a low-stock alert at or below"
+            name="threshold"
+            type="number"
+            min={0}
+            max={1000000}
+            step={1}
+            required
+            defaultValue={item.threshold ?? 10}
+          />
+          <OperationError error={threshold.error} />
+          <ActionButton type="submit" disabled={threshold.isPending}>
+            {threshold.isPending ? "Saving threshold…" : "Save threshold"}
+          </ActionButton>
+        </form>
       )}
-    </form>
+
+      {canAdjust && (
+        <>
+          <form
+            className="space-y-3 rounded-lg border bg-background p-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              if (!snapshot.updated_at) return;
+              correction.mutate({
+                quantity: Number(data.get("quantity")),
+                reason: String(data.get("reason")),
+                expected_updated_at: snapshot.updated_at,
+              });
+            }}
+          >
+            <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Starting or physical count
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Use this for the initial quantity, restocking, or a verified shelf correction.
+            </p>
+            <Field
+              key={snapshot.updated_at}
+              label="Verified quantity"
+              name="quantity"
+              type="number"
+              min={0}
+              max={1000000}
+              step={1}
+              required
+              defaultValue={snapshot.current_quantity}
+            />
+            <Field
+              label="Reason"
+              name="reason"
+              required
+              minLength={5}
+              maxLength={255}
+              placeholder="Initial physical count"
+            />
+            <OperationError error={correction.error} />
+            <ActionButton type="submit" disabled={correction.isPending || !snapshot.updated_at}>
+              {correction.isPending ? "Recording…" : "Record quantity"}
+            </ActionButton>
+          </form>
+
+          <form
+            className="space-y-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              if (!snapshot.updated_at) return;
+              const reason = String(data.get("reason")).trim();
+              checkout.mutate({
+                quantity: Number(data.get("quantity")),
+                ...(reason ? { reason } : {}),
+                expected_updated_at: snapshot.updated_at,
+              });
+            }}
+          >
+            <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+              Check out stock
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Subtract sold units from the committed quantity. Alerts and email delivery are
+              evaluated automatically after checkout.
+            </p>
+            <Field
+              key={`checkout-${snapshot.updated_at}`}
+              label={`Units checked out · ${snapshot.current_quantity} available`}
+              name="quantity"
+              type="number"
+              min={1}
+              max={Math.max(1, snapshot.current_quantity)}
+              step={1}
+              required
+              defaultValue={1}
+              disabled={checkoutBlocked}
+            />
+            <Field
+              label="Reason (optional)"
+              name="reason"
+              minLength={5}
+              maxLength={255}
+              placeholder="Customer checkout"
+              disabled={checkoutBlocked}
+            />
+            {checkoutBlocked && (
+              <p className="text-xs text-warning">
+                Record a starting quantity before processing checkout sales.
+              </p>
+            )}
+            <OperationError error={checkout.error} />
+            <ActionButton type="submit" disabled={checkout.isPending || checkoutBlocked}>
+              {checkout.isPending ? "Processing…" : "Check out units"}
+            </ActionButton>
+          </form>
+        </>
+      )}
+
+      {stale && (
+        <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/[0.05] p-3">
+          <p className="text-xs text-warning">
+            This record changed while the controls were open. Refresh before another stock change.
+          </p>
+          <ActionButton
+            onClick={() => {
+              setSnapshot(item);
+              correction.reset();
+              checkout.reset();
+              void refresh();
+            }}
+          >
+            Use latest count ({item.current_quantity})
+          </ActionButton>
+        </div>
+      )}
+    </div>
   );
 }

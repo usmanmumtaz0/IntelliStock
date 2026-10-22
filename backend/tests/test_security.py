@@ -116,6 +116,16 @@ def test_missing_and_invalid_tokens_are_rejected(client: TestClient):
     ).status_code == 401
 
 
+def test_openapi_exposes_jwt_bearer_authorization(client: TestClient):
+    schema = client.get("/openapi.json").json()
+    bearer = schema["components"]["securitySchemes"]["BearerAuth"]
+    assert bearer["type"] == "http"
+    assert bearer["scheme"] == "bearer"
+    assert bearer["bearerFormat"] == "JWT"
+    assert {"BearerAuth": []} in schema["paths"]["/api/v1/inventory"]["get"]["security"]
+    assert "security" not in schema["paths"]["/api/v1/auth/login"]["post"]
+
+
 def test_expired_and_tampered_tokens_are_rejected(client: TestClient, users):
     expired = _token(users["admin"], expires=timedelta(seconds=-1))
     valid = _token(users["admin"])

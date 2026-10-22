@@ -76,6 +76,22 @@ def save_configuration(db, data, user, zone=None):
     db.flush()
     for mapping in data.products:
         db.add(ZoneProductMapping(zone_id=zone.id, **mapping.model_dump()))
+        inventory = db.query(Inventory).filter_by(
+            zone_id=zone.id, product_id=mapping.product_id
+        ).first()
+        if inventory is None:
+            # A mapping makes the catalog item visible in Inventory immediately.
+            # Keep it UNKNOWN until a trusted camera observation or physical count
+            # establishes stock; zero here must not create a false stockout alert.
+            db.add(
+                Inventory(
+                    zone_id=zone.id,
+                    product_id=mapping.product_id,
+                    quantity_estimate=0,
+                    confidence=0.0,
+                    status=InventoryStatus.UNKNOWN,
+                )
+            )
     db.flush()
     result = configuration(db, zone)
     audit(db, user, "configure", "zone", zone.id, old, result)

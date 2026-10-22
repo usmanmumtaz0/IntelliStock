@@ -12,8 +12,9 @@ from app.models.product import Product
 from app.models.video_job import VideoDetection, VideoFrame, VideoJobStatus, VideoProcessingJob, VideoSourceKind
 from app.services import video_processing
 from app.services.video_processing import FrameSample, process_video_job
-from app.services.video_storage import resolve_storage_key
+from app.services.video_storage import resolve_storage_key, storage_queue_stage
 from app.api.video_jobs import _validate_camera_source
+from app.workers.video_jobs import claim_next_job
 
 
 def _user(role=UserRole.STAFF):
@@ -57,9 +58,13 @@ def test_upload_validation_and_private_job_access(client, monkeypatch, tmp_path)
     _other_id, other = _user()
     monkeypatch.setattr(settings, "VIDEO_STORAGE_ROOT", str(tmp_path))
 
+    with SessionLocal() as db:
+        jobs_before = db.query(VideoProcessingJob).count()
     rejected = client.post("/api/v1/video-jobs", headers=owner,
                            files={"video": ("payload.txt", b"not video", "text/plain")})
     assert rejected.status_code == 415
+    with SessionLocal() as db:
+        assert db.query(VideoProcessingJob).count() == jobs_before
 
     monkeypatch.setattr("app.api.video_jobs._inspect_video", lambda _path: (30.0, 90, 3000))
     accepted = client.post(
@@ -90,6 +95,18 @@ def test_upload_validation_and_private_job_access(client, monkeypatch, tmp_path)
     assert image_job["summary"]["source_width"] == 48
     assert "storage_key" not in image_job
 
+    ok, jpeg = cv2.imencode(".jpg", np.zeros((24, 36, 3), dtype=np.uint8))
+    assert ok
+    spaced_picture = client.post(
+        "/api/v1/video-jobs/images", headers=owner,
+        files={"image": ("download (2).jpg", jpeg.tobytes(), "image/jpeg")},
+    )
+    assert spaced_picture.status_code == 202, spaced_picture.text
+    with SessionLocal() as db:
+        row = db.get(VideoProcessingJob, spaced_picture.json()["id"])
+        assert row.original_filename == "download (2).jpg"
+        assert resolve_storage_key(row.storage_key).is_file()
+
 
 def test_frame_sampler_reads_a_picture_once(tmp_path):
     import cv2
@@ -99,6 +116,132 @@ def test_frame_sampler_reads_a_picture_once(tmp_path):
     assert len(samples) == 1
     assert samples[0].timestamp_ms == 0
     assert samples[0].frame.shape == (40, 60, 3)
+
+
+def test_frame_sampler_reads_picture_with_spaces_and_parentheses(tmp_path):
+    import cv2
+    path = tmp_path / "download (2).jpg"
+    assert cv2.imwrite(str(path), np.zeros((20, 30, 3), dtype=np.uint8))
+    samples = list(video_processing.VideoFrameSampler(str(path), 1, 10, 10))
+    assert len(samples) == 1
+    assert samples[0].frame.shape == (20, 30, 3)
+
+
+def test_missing_image_source_has_actionable_media_specific_failure(monkeypatch, tmp_path):
+    owner_id, _headers = _user()
+    monkeypatch.setattr(settings, "VIDEO_STORAGE_ROOT", str(tmp_path))
+    with SessionLocal() as db:
+        job = VideoProcessingJob(
+            owner_user_id=owner_id,
+            source_kind=VideoSourceKind.UPLOAD,
+            storage_key="missing/source.jpg",
+            content_type="image/jpeg",
+            sample_interval_seconds=1,
+            max_frames=1,
+            confidence_threshold=.4,
+            image_size=640,
+            tracking_enabled=False,
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+
+    with SessionLocal() as db:
+        process_video_job(db, job_id)
+    with SessionLocal() as db:
+        failed = db.get(VideoProcessingJob, job_id)
+        assert failed.status == VideoJobStatus.FAILED
+        assert "Uploaded image source is unavailable" in failed.error_message
+        assert "VIDEO_STORAGE_ROOT" in failed.error_message
+        assert str(tmp_path) not in failed.error_message
+
+
+def test_failed_job_retry_preserves_source_and_clears_partial_evidence(
+    client, monkeypatch, tmp_path
+):
+    owner_id, owner = _user()
+    monkeypatch.setattr(settings, "VIDEO_STORAGE_ROOT", str(tmp_path))
+    source = tmp_path / "job-with-partial-evidence" / "source.jpg"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"preserved source")
+    with SessionLocal() as db:
+        job = VideoProcessingJob(
+            owner_user_id=owner_id,
+            source_kind=VideoSourceKind.UPLOAD,
+            status=VideoJobStatus.FAILED,
+            stage="failed",
+            storage_key="job-with-partial-evidence/source.jpg",
+            content_type="image/jpeg",
+            sample_interval_seconds=1,
+            max_frames=1,
+            confidence_threshold=.4,
+            image_size=640,
+            tracking_enabled=False,
+            frames_processed=1,
+            detection_instances=1,
+            frames_with_detections=1,
+            error_message="Previous failure",
+        )
+        db.add(job)
+        db.flush()
+        frame = VideoFrame(
+            job_id=job.id, sequence=0, source_frame_index=0, timestamp_ms=0,
+            width=10, height=10, inference_ms=1, detection_count=1,
+        )
+        db.add(frame)
+        db.flush()
+        db.add(VideoDetection(
+            job_id=job.id, frame_id=frame.id, class_id=0, class_name="old",
+            confidence=.5, track_id=None, x1=0, y1=0, x2=1, y2=1,
+            normalized_bbox={"x1": 0, "y1": 0, "x2": .1, "y2": .1},
+        ))
+        db.commit()
+        job_id = job.id
+
+    response = client.post(f"/api/v1/video-jobs/{job_id}/retry", headers=owner)
+    assert response.status_code == 202, response.text
+    assert response.json()["status"] == "queued"
+    assert response.json()["stage"] == "queued"
+    assert source.is_file()
+    with SessionLocal() as db:
+        retried = db.get(VideoProcessingJob, job_id)
+        assert retried.frames_processed == 0
+        assert retried.detection_instances == 0
+        assert retried.error_message is None
+        assert db.query(VideoFrame).filter_by(job_id=job_id).count() == 0
+        assert db.query(VideoDetection).filter_by(job_id=job_id).count() == 0
+
+    repeated = client.post(f"/api/v1/video-jobs/{job_id}/retry", headers=owner)
+    assert repeated.status_code == 409
+
+
+def test_worker_claims_only_jobs_for_its_media_volume(monkeypatch, tmp_path):
+    owner_id, _headers = _user()
+    monkeypatch.setattr(settings, "VIDEO_STORAGE_ROOT", str(tmp_path))
+    with SessionLocal() as db:
+        local = VideoProcessingJob(
+            owner_user_id=owner_id, source_kind=VideoSourceKind.UPLOAD,
+            status=VideoJobStatus.CANCELLED, stage=storage_queue_stage(),
+            storage_key="local/source.jpg", sample_interval_seconds=1,
+            max_frames=1, confidence_threshold=.4, image_size=640,
+            tracking_enabled=False,
+        )
+        remote = VideoProcessingJob(
+            owner_user_id=owner_id, source_kind=VideoSourceKind.UPLOAD,
+            status=VideoJobStatus.CANCELLED, stage="storage_queued:remote-node",
+            storage_key="remote/source.jpg", sample_interval_seconds=1,
+            max_frames=1, confidence_threshold=.4, image_size=640,
+            tracking_enabled=False,
+        )
+        db.add_all([remote, local])
+        db.commit()
+        local_id, remote_id = local.id, remote.id
+
+    with SessionLocal() as db:
+        assert claim_next_job(db) == local_id
+    with SessionLocal() as db:
+        assert db.get(VideoProcessingJob, local_id).status == VideoJobStatus.PROCESSING
+        assert db.get(VideoProcessingJob, remote_id).status == VideoJobStatus.CANCELLED
 
 
 class _Values:

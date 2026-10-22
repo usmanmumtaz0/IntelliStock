@@ -91,6 +91,18 @@ CV_EMBEDDING_MODEL_PATH=C:/path/to/IntelliStock/models/dinov2-small
 CV_REFERENCE_IMAGE_ROOT=C:/path/to/IntelliStock/backend/media/product-references
 ```
 
+Create the reviewed 25-class catalog mapping before processing media:
+
+```powershell
+python -m scripts.sync_model_catalog --admin-email admin@intellistock.com
+python -m scripts.sync_model_catalog --admin-email admin@intellistock.com --apply
+```
+
+The command is idempotent and audited. It creates missing products, preserves exact
+matches, and refuses conflicting existing SKUs. Uploads then resolve detections to
+catalog products. Live shelf quantities update only after an administrator maps the
+relevant class IDs to products in a calibrated shelf zone.
+
 PP-OCRv6 and DINOv2 dependencies are included in the main backend requirements:
 
 ```powershell

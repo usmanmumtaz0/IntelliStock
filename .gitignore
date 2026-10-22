@@ -22,6 +22,7 @@ replay-zones.local.json
 /runs/
 /backend/runs/
 /backend/media/
+/backend/.runtime/
 *-dev.out.log
 *-dev.err.log
 /video-worker.*.log

@@ -34,6 +34,8 @@ paddleocr==3.7.0
 paddlepaddle==3.2.1
 transformers==4.46.3
 safetensors==0.6.2
+Pillow==10.4.0
+
 # Uvicorn 0.24 uses the legacy WebSocket server API.
 websockets==12.0
 
@@ -43,9 +45,13 @@ httpx==0.25.2
 
 # Utilities
 python-dotenv==1.0.0
+# Used by the retired prototype ROI helpers retained in cv/.
+scipy==1.11.4
 
 # AI / LLM Framework
 langchain==0.1.10
+# Imported directly for tracing; pin them instead of relying on transitive resolution.
+langchain-core==0.1.53
+langsmith==0.1.81
 langgraph==0.0.26
 openai==1.6.1
-
