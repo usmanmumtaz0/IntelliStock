@@ -90,6 +90,7 @@ def test_disabled_evidence_runtime_has_no_optional_dependency_requirement(monkey
 
     monkeypatch.setattr(settings, "CV_OCR_ENABLED", False)
     monkeypatch.setattr(settings, "CV_EMBEDDING_ENABLED", False)
+    monkeypatch.setattr(settings, "CV_FLORENCE_ENABLED", False)
     runtime = IdentityEvidenceRuntime(settings)
     evidence = runtime.extract(np.zeros((20, 20, 3), dtype=np.uint8), [])
     assert evidence.ocr.tokens == ()
@@ -122,6 +123,7 @@ def test_florence_policy_is_conditional_and_missing_weights_fail_open(monkeypatc
     monkeypatch.setattr(settings, "CV_FLORENCE_ENABLED", True)
     monkeypatch.setattr(settings, "CV_FLORENCE_MODEL_PATH", "")
     monkeypatch.setattr(settings, "CV_FLORENCE_ALLOW_REMOTE_DOWNLOAD", False)
+    monkeypatch.setattr(settings, "CV_FLORENCE_POLICY", "ambiguous_or_low_confidence")
     runtime = IdentityEvidenceRuntime(settings)
     assert runtime.should_use_florence("identified", 0.95) is False
     assert runtime.should_use_florence("ambiguous", 0.95) is True
@@ -134,3 +136,24 @@ def test_florence_policy_is_conditional_and_missing_weights_fail_open(monkeypatc
     assert health["enabled"] is True
     assert health["loaded"] is False
     assert health["remote_download_allowed"] is False
+
+
+def test_florence_always_policy_runs_for_confident_matches_and_requires_weights(tmp_path):
+    from app.core.config import settings
+    config = settings.model_copy(update={"CV_FLORENCE_ENABLED": True,
+        "CV_FLORENCE_POLICY": "always", "CV_FLORENCE_MODEL_PATH": str(tmp_path)})
+    runtime = IdentityEvidenceRuntime(config)
+    assert runtime.should_use_florence("identified", 0.99) is True
+    (tmp_path / "config.json").write_text("{}")
+    assert runtime.florence.health()["model_present"] is False
+    (tmp_path / "model.safetensors").write_bytes(b"test-fixture")
+    assert runtime.florence.health()["model_present"] is True
+    runtime.florence.enabled = False
+    assert runtime.should_use_florence("identified", 0.99) is False
+
+
+def test_florence_caption_preserves_more_than_an_ocr_token():
+    caption = "A product with readable packaging. " * 12
+    result = parse_florence_output({"<DETAILED_CAPTION>": caption}, "<DETAILED_CAPTION>")
+    assert result.description == caption.strip()
+    assert parse_florence_output(None, "<DETAILED_CAPTION>").description is None

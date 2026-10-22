@@ -325,7 +325,8 @@ class DinoV2Retriever:
         return RetrievalEvidence(scores=tuple(ranked[:3]))
 
     def health(self) -> dict[str, Any]:
-        model_present = bool(self.model_path and self.model_path.is_dir())
+        model_present = bool(self.model_path and (self.model_path / "config.json").is_file()
+                             and (self.model_path / "model.safetensors").is_file())
         return {
             "provider": "dinov2",
             "enabled": self.enabled,
@@ -351,7 +352,7 @@ def parse_florence_output(result: Any, task: str) -> FlorenceEvidence:
         else:
             labels = value.get("labels")
             value = " ".join(str(item) for item in labels) if isinstance(labels, list) else ""
-    text = _clean_token(value)
+    text = " ".join(value.split())[:500] if isinstance(value, str) else ""
     return FlorenceEvidence(description=text[:500] if text else None, task=task if text else None)
 
 
@@ -457,13 +458,15 @@ class Florence2Provider:
         ambiguous = identity_status in {"ambiguous", "unknown", "category_only"}
         low_confidence = detector_confidence <= self.trigger_max_confidence
         return {
+            "always": True,
             "ambiguous": ambiguous,
             "low_confidence": low_confidence,
             "ambiguous_or_low_confidence": ambiguous or low_confidence,
         }[self.policy]
 
     def health(self) -> dict[str, Any]:
-        model_present = bool(self.model_path and self.model_path.is_dir())
+        model_present = bool(self.model_path and (self.model_path / "config.json").is_file()
+                             and (self.model_path / "model.safetensors").is_file())
         source = self.model_path.name if model_present else (
             self.model_id if self.allow_remote_download else None
         )

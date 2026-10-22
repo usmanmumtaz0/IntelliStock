@@ -29,11 +29,15 @@ lapx==0.5.11
 torch==2.2.2
 torchvision==0.17.2
 
-# Product identity evidence (PP-OCRv6 and local DINOv2)
+# Product identity evidence (PP-OCRv6, Florence-2 and local DINOv2)
 paddleocr==3.7.0
 paddlepaddle==3.2.1
 transformers==4.46.3
 safetensors==0.6.2
+# Model snapshot downloads, including the optional Xet transfer helper.
+huggingface-hub==0.36.2
+hf-xet==1.7.0
+requests==2.34.2
 # Florence-2 remote-code checkpoints import these vision helpers directly.
 timm==1.0.30
 einops==0.8.2

@@ -28,3 +28,10 @@ SHA-256 (`6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5`) as
 `models/best.pt`; it is not a newer detector and is not a Florence or OCR checkpoint.
 Florence-2 weights must be staged separately under a local directory configured with
 `CV_FLORENCE_MODEL_PATH`.
+
+
+Florence-2-base was installed locally on 2026-10-23 from Microsoft revision
+`5ca5edf5bd017b9919c05d08aebef5e4c7ac3bac`. Its 463,221,266-byte safetensors file
+has SHA-256 `03075d2d2d2bbd3e180b9ba0afae4aa8563226e2d32911656966e05b2f2ee060`.
+The ignored `models/florence-2-base` directory contains the complete local snapshot.
+It is not included in Git clones; stage the same snapshot before enabling Florence.

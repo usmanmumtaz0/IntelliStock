@@ -420,3 +420,72 @@ def test_manager_can_resolve_owned_detection_without_changing_inventory(client):
     assert response.status_code == 200, response.text
     assert response.json()["identity_status"] == "identified"
     assert response.json()["product_id"] == product_id
+
+
+def _deletion_fixture(owner_id, status=VideoJobStatus.COMPLETED):
+    with SessionLocal() as db:
+        job = VideoProcessingJob(owner_user_id=owner_id, source_kind=VideoSourceKind.UPLOAD,
+            status=status, stage=status.value, frames_processed=1, detection_instances=2,
+            frames_with_detections=1, tracking_enabled=True, unique_tracked_objects=2,
+            summary={"inventory_effect": "review_only", "detections_by_class": {"wrong": 1, "right": 1}})
+        db.add(job); db.flush()
+        frame = VideoFrame(job_id=job.id, sequence=0, source_frame_index=0,
+            timestamp_ms=0, width=20, height=20, detection_count=2,
+            annotated_storage_key="old-annotation.jpg")
+        db.add(frame); db.flush()
+        ids = []
+        for track, name in enumerate(("wrong", "right"), 1):
+            d = VideoDetection(job_id=job.id, frame_id=frame.id, class_id=track,
+                class_name=name, confidence=0.9, track_id=track, x1=0,y1=0,x2=10,y2=10,
+                normalized_bbox={"x1":0,"y1":0,"x2":0.5,"y2":0.5},
+                identity_status="unknown", identity_confidence=0.4,
+                identity_evidence={"ocr_tokens":[name],"florence_description":"a package"})
+            db.add(d);db.flush();ids.append(d.id)
+        db.commit()
+        return job.id, frame.id, ids
+
+
+def test_delete_detection_permissions_counts_and_audit(client):
+    from app.models.audit_log import AuditLog
+    from app.models.inventory import Inventory
+    owner_id, owner = _user(UserRole.MANAGER)
+    _, other = _user(UserRole.MANAGER)
+    _, staff = _user()
+    _, admin = _user(UserRole.ADMIN)
+    job_id, frame_id, ids = _deletion_fixture(owner_id)
+    url = f"/api/v1/video-jobs/detections/{ids[0]}"
+    with SessionLocal() as db:
+        before = [(i.id, i.quantity_estimate) for i in db.query(Inventory).order_by(Inventory.id)]
+    assert client.delete(url).status_code == 401
+    assert client.delete(url, headers=staff).status_code == 403
+    assert client.delete(url, headers=other).status_code == 404
+    response = client.delete(url, headers=owner)
+    assert response.status_code == 200, response.text
+    with SessionLocal() as db:
+        assert db.get(VideoDetection, ids[0]) is None
+        assert db.get(VideoDetection, ids[1]) is not None
+        frame = db.get(VideoFrame, frame_id)
+        assert frame.detection_count == 1 and frame.annotated_storage_key is None
+        job = db.get(VideoProcessingJob, job_id)
+        assert job.detection_instances == 1 and job.unique_tracked_objects == 1
+        assert job.summary["detections_by_class"] == {"right": 1}
+        assert job.summary["identity_evidence"] == {"ocr": 1, "florence": 1}
+        entry = db.query(AuditLog).filter_by(resource_id=ids[0], action="delete").one()
+        assert entry.old_values["class_name"] == "wrong"
+        assert entry.new_values["inventory_effect"] == "none"
+        assert before == [(i.id, i.quantity_estimate) for i in db.query(Inventory).order_by(Inventory.id)]
+    assert client.get(f"/api/v1/video-jobs/{job_id}/frames/{frame_id}/image",headers=owner).status_code == 404
+    assert client.delete(url, headers=owner).status_code == 404
+    assert client.delete(f"/api/v1/video-jobs/detections/{ids[1]}",headers=admin).status_code == 200
+    with SessionLocal() as db:
+        job=db.get(VideoProcessingJob,job_id)
+        assert job.detection_instances == job.frames_with_detections == job.unique_tracked_objects == 0
+        assert job.summary["detections_by_class"] == {}
+
+
+def test_delete_detection_rejects_running_jobs(client):
+    owner_id, owner = _user(UserRole.MANAGER)
+    _, _, ids = _deletion_fixture(owner_id, VideoJobStatus.PROCESSING)
+    assert client.delete(f"/api/v1/video-jobs/detections/{ids[0]}",headers=owner).status_code == 409
+    with SessionLocal() as db:
+        assert db.get(VideoDetection, ids[0]) is not None

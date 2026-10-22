@@ -1,6 +1,7 @@
 """Authenticated video upload, bounded camera jobs, status, evidence, and cancellation."""
 from __future__ import annotations
 
+from collections import Counter
 from ipaddress import ip_address
 from pathlib import Path
 from urllib.parse import urlparse
@@ -437,6 +438,7 @@ def identify_detection(
         "method": "manual_catalog_review",
         "reviewer_user_id": user.id,
         "catalog_sku": product.sku,
+        "catalog_name": product.name,
     }
     audit(db, user, "identify", "video_detection", detection.id,
           new={"product_id": product.id, "inventory_effect": "none"})
@@ -454,6 +456,53 @@ def identify_detection(
                          x2=detection.x2, y2=detection.y2),
         normalized_bbox=BoundingBox(**detection.normalized_bbox),
     )
+
+
+@router.delete("/detections/{detection_id}")
+def delete_detection(detection_id: str, db: Session = Depends(get_db),
+                     user=Depends(get_current_user)):
+    """Remove a false detection, preserving an audit record and stock quantities."""
+    detection = db.get(VideoDetection, detection_id)
+    if not detection:
+        raise HTTPException(404, "Detection not found")
+    job = db.query(VideoProcessingJob).filter_by(id=detection.job_id).with_for_update().first()
+    if not job or not _owns_or_can_read_all(job, user):
+        raise HTTPException(404, "Detection not found")
+    if job.status not in (VideoJobStatus.COMPLETED, VideoJobStatus.FAILED, VideoJobStatus.CANCELLED) or job.stage.startswith("storage_queued:"):
+        raise HTTPException(409, "Wait for processing to finish before deleting a detection")
+    frame = db.get(VideoFrame, detection.frame_id)
+    audit(db, user, "delete", "video_detection", detection.id,
+          old={"job_id": job.id, "frame_id": detection.frame_id,
+               "class_name": detection.class_name, "product_id": detection.product_id,
+               "identity_status": detection.identity_status,
+               "identity_evidence": detection.identity_evidence},
+          new={"reason": "reviewer_removed_incorrect_detection", "inventory_effect": "none"})
+    db.delete(detection)
+    db.flush()
+    remaining = db.query(VideoDetection).filter_by(job_id=job.id).all()
+    if frame:
+        frame.detection_count = sum(item.frame_id == frame.id for item in remaining)
+        # Cached image contains the rejected bounding box; never continue serving it.
+        frame.annotated_storage_key = None
+    job.detection_instances = len(remaining)
+    job.frames_with_detections = len({item.frame_id for item in remaining})
+    job.unique_tracked_objects = len({item.track_id for item in remaining if item.track_id is not None}) if job.tracking_enabled else None
+    evidence_counts = Counter()
+    for item in remaining:
+        evidence = item.identity_evidence or {}
+        if evidence.get("ocr_tokens"):
+            evidence_counts["ocr"] += 1
+        if evidence.get("florence_description"):
+            evidence_counts["florence"] += 1
+        if evidence.get("retrieval_candidates"):
+            evidence_counts["visual_retrieval"] += 1
+        evidence_counts.update(evidence.get("provider_errors", []))
+    job.summary = {**(job.summary or {}),
+        "detections_by_class": dict(Counter(item.class_name for item in remaining)),
+        "identity_states": dict(Counter(item.identity_status for item in remaining)),
+        "identity_evidence": dict(evidence_counts)}
+    db.commit()
+    return {"deleted_id": detection_id, "inventory_effect": "none"}
 
 
 @router.get("/{job_id}", response_model=VideoJobResponse)

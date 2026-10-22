@@ -219,3 +219,58 @@ Florence descriptions are matched against the existing catalog as a distinct heu
 source. They are not treated as calibrated probabilities. Conflicts among OCR, visual retrieval
 and Florence remain ambiguous and enter the existing review flow. Raw model output never changes
 inventory.
+
+
+## Real model smoke test and completed results (2026-10-23)
+
+From the repository root, use the same environment as the video worker:
+
+```powershell
+$env:PYTHONPATH = 'backend'
+.\.venv-phase123\Scripts\python.exe -m scripts.test_product_evidence --image 'C:/path/to/product.jpg'
+```
+
+This runs real OCR and YOLO, reads the product catalog, and prints evidence. It
+never changes stock or creates alerts. Disabled providers are reported as disabled;
+a provider exception exits with failure. It is a smoke test, not an accuracy benchmark.
+
+The local saved Sunsilk sample identified `Sunsilk Shampoo Soft - Smooth 160ml`
+through the reviewed manifest SKU. Whole-image OCR read `sunsik` with score 0.9699;
+crop OCR scored 0.9873. These scores do not prove correct spelling or product identity.
+
+Florence is now installed and enabled locally. The official snapshot revision
+`5ca5edf5bd017b9919c05d08aebef5e4c7ac3bac` was downloaded using fresh signed
+byte-range requests after whole-file downloads stalled. The 463,221,266-byte
+`model.safetensors` passed SHA-256 verification:
+`03075d2d2d2bbd3e180b9ba0afae4aa8563226e2d32911656966e05b2f2ee060`.
+Local settings enable OCR and Florence with `CV_FLORENCE_POLICY=always`, an absolute
+local model path, trusted pinned Microsoft model code, and remote downloads disabled.
+The always policy requests Florence evidence for each fresh detection crop; videos
+reuse track evidence. The default shared configuration remains conditional.
+
+Real combined inference passed on the Sunsilk sample. Florence produced a caption
+but incorrectly described the shampoo as sunscreen. The final product correctly
+remained the reviewed catalog match. This is functional verification, not proof of
+perfect accuracy. Florence captions are supporting evidence, not confirmed identities.
+
+To repeat the explicit local-model smoke test:
+
+```powershell
+.\.venv-phase123\Scripts\python.exe -m scripts.test_product_evidence --image 'C:/path/to/product.jpg' --florence-model models/florence-2-base --trust-florence-code
+```
+
+Completed upload cards show the catalog name (when saved), YOLO prediction,
+packaging text, Florence description if recorded, and identity evidence strength.
+Ambiguous detections show Needs review. An empty completed upload explicitly says
+no products detected. Final frames are refreshed when the job reaches a terminal
+state. Earlier uploads are not reprocessed automatically; upload again to capture
+new evidence after enabling a provider. Inventory is still changed only through
+its existing authorized stock workflows.
+
+
+Live API verification on 2026-10-23 completed an image upload named
+`three-model-verification.jpg` and a two-frame video fixture named
+`three-model-verification.mp4` created from that photo. Both returned catalog
+identification plus nonempty OCR and Florence evidence, with no provider errors.
+The video retained one tracked object across both frames. These fixtures validate
+integration, not general video accuracy. They are visible in the processing job list.

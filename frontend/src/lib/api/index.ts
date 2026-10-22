@@ -135,6 +135,11 @@ export const api = {
   detectorHealth: () => apiRequest<DetectorHealthDto>("/video-jobs/model-health"),
   detectionReviewQueue: () =>
     apiRequest<DetectionReviewListDto>("/video-jobs/review-queue?limit=100"),
+  deleteDetection: (detectionId: string) =>
+    apiRequest<{ deleted_id: string; inventory_effect: string }>(
+      `/video-jobs/detections/${encodeURIComponent(detectionId)}`,
+      { method: "DELETE" },
+    ),
   identifyDetection: (detectionId: string, productId: string) =>
     apiRequest<VideoDetectionDto>(
       `/video-jobs/detections/${encodeURIComponent(detectionId)}/identify`,

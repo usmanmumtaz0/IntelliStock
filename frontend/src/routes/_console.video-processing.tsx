@@ -12,12 +12,23 @@ import {
   ScanSearch,
   ShieldCheck,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { api, apiBlobRequest, ApiError, type VideoFrameDto, type VideoJobDto } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/lib/query-keys";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, Panel, Tag } from "@/components/app/primitives";
+import { DetectionResult } from "@/components/app/detection-result";
 import { operations } from "@/lib/api/operations";
 
 export const Route = createFileRoute("/_console/video-processing")({
@@ -76,7 +87,13 @@ function AuthenticatedImage({ path, alt }: { path: string; alt: string }) {
   );
 }
 
-function FrameCard({ frame }: { frame: VideoFrameDto }) {
+function FrameCard({
+  frame,
+  onDelete,
+}: {
+  frame: VideoFrameDto;
+  onDelete?: ((id: string, name: string) => void) | undefined;
+}) {
   return (
     <article className="min-w-0 rounded-xl border bg-surface p-3">
       {frame.annotated_image_url ? (
@@ -95,19 +112,21 @@ function FrameCard({ frame }: { frame: VideoFrameDto }) {
           {frame.detection_count} detections
         </Tag>
       </div>
-      {frame.detections.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {frame.detections.map((detection) => (
-            <Tag key={detection.id} tone={identityTone(detection.identity_status)}>
-              {detection.product_id
-                ? detection.class_name
-                : (detection.category ?? "Unknown product")}{" "}
-              {Math.round(detection.identity_confidence * 100)}%
-              {detection.track_id !== null ? ` · #${detection.track_id}` : ""}
-            </Tag>
-          ))}
+      {frame.detections.map((detection) => (
+        <div key={detection.id}>
+          <DetectionResult detection={detection} />
+          {onDelete && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 text-critical"
+              onClick={() => onDelete(detection.id, detection.class_name)}
+            >
+              <Trash2 /> Delete detection
+            </Button>
+          )}
         </div>
-      )}
+      ))}
     </article>
   );
 }
@@ -115,6 +134,8 @@ function FrameCard({ frame }: { frame: VideoFrameDto }) {
 function VideoProcessing() {
   const queryClient = useQueryClient();
   const { can } = useAuth();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string }>();
+  const [deleteError, setDeleteError] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
   const [uploadProgress, setUploadProgress] = useState<number>();
   const [uploadKind, setUploadKind] = useState<"video" | "image">("video");
@@ -137,6 +158,15 @@ function VideoProcessing() {
     enabled: Boolean(selected && selected.frames_processed > 0),
     refetchInterval: selected && !terminal.has(selected.status) ? 2_000 : false,
   });
+  const selectedIdForFrames = selected?.id;
+  const selectedStatusForFrames = selected?.status;
+  useEffect(() => {
+    if (selectedIdForFrames && selectedStatusForFrames && terminal.has(selectedStatusForFrames)) {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.videoJobs, selectedIdForFrames, "frames"],
+      });
+    }
+  }, [selectedIdForFrames, selectedStatusForFrames, queryClient]);
   const cameras = useQuery({
     queryKey: queryKeys.cameras,
     queryFn: api.cameras,
@@ -212,6 +242,25 @@ function VideoProcessing() {
       setMessage(error instanceof ApiError ? error.message : "Identity review failed"),
   });
 
+  const requestDelete = (id: string, name: string) => {
+    setDeleteError(undefined);
+    setDeleteTarget({ id, name });
+  };
+  const deleteDetection = useMutation({
+    mutationFn: (id: string) => api.deleteDetection(id),
+    onSuccess: async () => {
+      setDeleteTarget(undefined);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.detectionReview }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.videoJobs }),
+      ]);
+    },
+    onError: (error) =>
+      setDeleteError(
+        error instanceof ApiError ? error.message : "Could not delete detection. Please try again.",
+      ),
+  });
+
   const submitUpload = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(undefined);
@@ -233,6 +282,41 @@ function VideoProcessing() {
 
   return (
     <>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleteDetection.isPending) setDeleteTarget(undefined);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this detection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove &quot;{deleteTarget?.name}&quot; from this frame and the review list? This
+              cannot be undone. Other frames, catalog products and inventory quantities stay
+              unchanged. The frame preview will be cleared because it contains the old detection
+              box.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <p role="alert" className="text-sm text-critical">
+              {deleteError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteDetection.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteDetection.isPending || !deleteTarget}
+              onClick={() => {
+                if (deleteTarget) deleteDetection.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteDetection.isPending ? "Deleting..." : "Delete detection"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PageHeader
         title="Vision processing"
         eyebrow="Detection & product identity"
@@ -420,7 +504,7 @@ function VideoProcessing() {
                   </Tag>
                 </div>
                 {can("video_jobs.review") && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <select
                       aria-label={`Catalog product for ${item.class_name}`}
                       value={reviewProducts[item.id] ?? ""}
@@ -450,6 +534,14 @@ function VideoProcessing() {
                       }
                     >
                       Confirm
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-critical"
+                      onClick={() => requestDelete(item.id, item.class_name)}
+                    >
+                      <Trash2 /> Delete
                     </Button>
                   </div>
                 )}
@@ -526,6 +618,28 @@ function VideoProcessing() {
                   value={selected.unique_tracked_objects?.toString() ?? "—"}
                 />
               </div>
+              {selected.status === "completed" && (
+                <div role="status" className="mt-4 rounded-lg border bg-primary/5 p-4 text-sm">
+                  <h3 className="font-semibold">
+                    {selected.detection_instances > 0
+                      ? "Analysis complete - review product results below"
+                      : "Analysis complete - no products detected"}
+                  </h3>
+                  <p className="mt-1 text-muted-foreground">
+                    {selected.detection_instances > 0
+                      ? "Each result shows the product match and the evidence recorded for this upload. Processing completion does not guarantee identification or change inventory quantities."
+                      : "Try a sharper, well-lit photo with the packaging visible. Completion means processing finished; it does not mean a product was identified."}
+                  </p>
+                </div>
+              )}
+              {frames.isError && (
+                <p role="alert" className="mt-4 text-sm text-critical">
+                  Could not load product results.{" "}
+                  <button className="underline" onClick={() => void frames.refetch()}>
+                    Retry results
+                  </button>
+                </p>
+              )}
               {selected.error_message && (
                 <p
                   role="alert"
@@ -536,7 +650,15 @@ function VideoProcessing() {
               )}
               <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 {frames.data?.data.map((frame) => (
-                  <FrameCard key={frame.id} frame={frame} />
+                  <FrameCard
+                    key={frame.id}
+                    frame={frame}
+                    onDelete={
+                      can("video_jobs.review") && terminal.has(selected.status)
+                        ? requestDelete
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
               {selected.frames_processed === 0 && selected.status === "queued" && (

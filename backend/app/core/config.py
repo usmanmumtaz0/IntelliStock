@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     CV_FLORENCE_TRUST_REMOTE_CODE: bool = False
     CV_FLORENCE_DEVICE: str = "cpu"
     CV_FLORENCE_TASK: Literal["<CAPTION>", "<DETAILED_CAPTION>", "<MORE_DETAILED_CAPTION>"] = "<DETAILED_CAPTION>"
-    CV_FLORENCE_POLICY: Literal["ambiguous", "low_confidence", "ambiguous_or_low_confidence"] = "ambiguous_or_low_confidence"
+    CV_FLORENCE_POLICY: Literal["always", "ambiguous", "low_confidence", "ambiguous_or_low_confidence"] = "ambiguous_or_low_confidence"
     CV_FLORENCE_TRIGGER_MAX_CONFIDENCE: float = Field(default=0.70, ge=0.0, le=1.0)
     CV_FLORENCE_MATCH_MIN_CONFIDENCE: float = Field(default=0.72, ge=0.0, le=1.0)
     CV_FLORENCE_MATCH_MIN_MARGIN: float = Field(default=0.10, ge=0.0, le=1.0)

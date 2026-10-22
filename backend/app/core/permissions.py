@@ -106,3 +106,5 @@ def enforce_route_permission(request: Request, user=Depends(get_current_user)):
         raise HTTPException(403, "No access policy for this operation")
     authorize(user, permission)
     return user
+
+register("DELETE", "video_jobs.review", "/video-jobs/detections/{detection_id}")

@@ -226,3 +226,18 @@ resource and must not treat WebSocket payloads or bounding-box counts as authori
 The `identity_evidence` object returned by `GET /video-jobs/model-health` contains independent
 `ocr`, `retrieval`, and `florence` provider status. This endpoint performs a read-only preflight;
 it does not download or load optional model weights.
+
+
+### Delete an incorrect detection
+
+`DELETE /api/v1/video-jobs/detections/{detection_id}` requires `video_jobs.review`
+(manager or admin) and the same job access rules as identity confirmation.
+Managers can review their own jobs; admins can review all jobs. Returns
+`{ "deleted_id": "...", "inventory_effect": "none" }`. Unauthenticated requests
+return 401, unauthorized roles 403, missing/inaccessible detections 404, and
+unfinished jobs 409. A reviewer must confirm deletion in the frontend dialog.
+
+Deletes one frame observation, updates frame/job result counts, and records the
+previous identity evidence in the audit log. It does not delete catalog products,
+change stock quantities, or remove observations from other frames. The affected
+frame's cached annotated preview is cleared so the rejected box is no longer shown.

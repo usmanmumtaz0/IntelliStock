@@ -138,7 +138,7 @@ class ProductIdentityService:
             package_size=product.package_size,
             barcode=product.barcode,
             confidence=max(0.0, min(1.0, confidence)),
-            evidence={"method": method, "catalog_sku": product.sku, **details},
+            evidence={"method": method, "catalog_sku": product.sku, "catalog_name": product.name, **details},
         )
 
     def identify(self, evidence: IdentityEvidence) -> IdentityResult:
