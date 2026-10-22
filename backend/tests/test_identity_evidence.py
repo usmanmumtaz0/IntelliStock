@@ -5,8 +5,11 @@ import os
 import numpy as np
 
 from app.cv.identity_evidence import (
+    EnrichedIdentityEvidence,
+    FlorenceEvidence,
     IdentityEvidenceRuntime,
     crop_detection,
+    parse_florence_output,
     parse_paddle_output,
 )
 from app.database import SessionLocal
@@ -97,3 +100,37 @@ def test_detection_crop_is_clamped_to_frame():
     frame = np.zeros((20, 30, 3), dtype=np.uint8)
     crop = crop_detection(frame, (-10, -5, 40, 25))
     assert crop.shape == frame.shape
+
+def test_florence_output_parser_supports_caption_and_label_shapes():
+    caption = parse_florence_output(
+        {"<DETAILED_CAPTION>": "A Lays Masala 34 gm packet"},
+        "<DETAILED_CAPTION>",
+    )
+    assert caption.description == "A Lays Masala 34 gm packet"
+    assert caption.task == "<DETAILED_CAPTION>"
+
+    labels = parse_florence_output(
+        {"<DENSE_REGION_CAPTION>": {"labels": ["Lays", "Masala"]}},
+        "<DENSE_REGION_CAPTION>",
+    )
+    assert labels.description == "Lays Masala"
+
+
+def test_florence_policy_is_conditional_and_missing_weights_fail_open(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "CV_FLORENCE_ENABLED", True)
+    monkeypatch.setattr(settings, "CV_FLORENCE_MODEL_PATH", "")
+    monkeypatch.setattr(settings, "CV_FLORENCE_ALLOW_REMOTE_DOWNLOAD", False)
+    runtime = IdentityEvidenceRuntime(settings)
+    assert runtime.should_use_florence("identified", 0.95) is False
+    assert runtime.should_use_florence("ambiguous", 0.95) is True
+    result = runtime.add_florence(
+        EnrichedIdentityEvidence(), np.zeros((20, 20, 3), dtype=np.uint8)
+    )
+    assert result.florence == FlorenceEvidence()
+    assert result.errors == ("florence_unavailable",)
+    health = runtime.health()["florence"]
+    assert health["enabled"] is True
+    assert health["loaded"] is False
+    assert health["remote_download_allowed"] is False

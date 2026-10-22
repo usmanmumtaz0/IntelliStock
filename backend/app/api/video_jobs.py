@@ -352,8 +352,8 @@ def list_jobs(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)
 
 
 @router.get("/model-health", response_model=DetectorHealthResponse)
-def model_health():
-    """Read-only model/device preflight; does not download or deserialize weights."""
+def model_health(_user=Depends(get_current_user)):
+    """Authenticated model/device preflight; does not load or download weights."""
     from app.services.video_processing import model_service
     return DetectorHealthResponse(**model_service.health())
 

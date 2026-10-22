@@ -263,6 +263,8 @@ def process_video_job(db: Session, job_id: str) -> None:
             ocr_minimum_margin=settings.CV_OCR_MATCH_MIN_MARGIN,
             retrieval_minimum_confidence=settings.CV_RETRIEVAL_MIN_CONFIDENCE,
             retrieval_minimum_margin=settings.CV_RETRIEVAL_MIN_MARGIN,
+            florence_minimum_confidence=settings.CV_FLORENCE_MATCH_MIN_CONFIDENCE,
+            florence_minimum_margin=settings.CV_FLORENCE_MATCH_MIN_MARGIN,
         )
         catalog_products = tuple(db.query(Product).all())
         manifest_skus = {
@@ -318,6 +320,10 @@ def process_video_job(db: Session, job_id: str) -> None:
                     class_id = int(cls)
                     class_name = str(result.names[class_id])
                     enriched = EnrichedIdentityEvidence()
+                    crop = None
+                    cache_key = None
+                    sharpness = 0.0
+                    refreshed = False
                     if identity_evidence_runtime.enabled:
                         crop = crop_detection(sample.frame, xyxy)
                         cache_key = ((class_id, int(track_id))
@@ -327,23 +333,37 @@ def process_video_job(db: Session, job_id: str) -> None:
                         if (cached is None or sharpness >= cached[0]
                                 * settings.CV_EVIDENCE_REFRESH_SHARPNESS_RATIO):
                             enriched = identity_evidence_runtime.extract(crop, catalog_products)
-                            if cache_key:
-                                track_evidence[cache_key] = (sharpness, enriched)
+                            refreshed = True
                         else:
                             enriched = cached[1]
-                    identity = identity_service.identify(IdentityEvidence(
-                        detector_label=class_name,
-                        detector_confidence=float(conf),
-                        manifest_sku=manifest_skus.get(class_id),
-                        ocr_tokens=enriched.ocr.tokens,
-                        ocr_confidence=enriched.ocr.confidence,
-                        retrieval_scores=enriched.retrieval.scores,
-                        provider_errors=enriched.errors,
-                    ))
+
+                    def identity_input(value: EnrichedIdentityEvidence) -> IdentityEvidence:
+                        return IdentityEvidence(
+                            detector_label=class_name,
+                            detector_confidence=float(conf),
+                            manifest_sku=manifest_skus.get(class_id),
+                            ocr_tokens=value.ocr.tokens,
+                            ocr_confidence=value.ocr.confidence,
+                            retrieval_scores=value.retrieval.scores,
+                            florence_description=value.florence.description,
+                            provider_errors=value.errors,
+                        )
+
+                    preliminary = identity_service.identify(identity_input(enriched))
+                    if (crop is not None and refreshed
+                            and identity_evidence_runtime.should_use_florence(
+                                preliminary.status.value, float(conf)
+                            )):
+                        enriched = identity_evidence_runtime.add_florence(enriched, crop)
+                    if cache_key and refreshed:
+                        track_evidence[cache_key] = (sharpness, enriched)
+                    identity = identity_service.identify(identity_input(enriched))
                     if enriched.ocr.tokens:
                         evidence_counts["ocr"] += 1
                     if enriched.retrieval.scores:
                         evidence_counts["visual_retrieval"] += 1
+                    if enriched.florence.description:
+                        evidence_counts["florence"] += 1
                     for provider_error in enriched.errors:
                         evidence_counts[provider_error] += 1
                     normalized = {name: float(value) for name, value in

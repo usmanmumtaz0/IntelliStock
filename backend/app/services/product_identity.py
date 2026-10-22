@@ -31,6 +31,7 @@ class IdentityEvidence:
     ocr_tokens: tuple[str, ...] = ()
     ocr_confidence: float = 0.0
     retrieval_scores: tuple[tuple[str, float], ...] = ()
+    florence_description: str | None = None
     provider_errors: tuple[str, ...] = ()
 
 
@@ -114,13 +115,17 @@ class ProductIdentityService:
                  *, ocr_minimum_confidence: float = 0.72,
                  ocr_minimum_margin: float = 0.10,
                  retrieval_minimum_confidence: float = 0.82,
-                 retrieval_minimum_margin: float = 0.05):
+                 retrieval_minimum_margin: float = 0.05,
+                 florence_minimum_confidence: float = 0.72,
+                 florence_minimum_margin: float = 0.10):
         self.db = db
         self.minimum_confidence = minimum_confidence
         self.ocr_minimum_confidence = ocr_minimum_confidence
         self.ocr_minimum_margin = ocr_minimum_margin
         self.retrieval_minimum_confidence = retrieval_minimum_confidence
         self.retrieval_minimum_margin = retrieval_minimum_margin
+        self.florence_minimum_confidence = florence_minimum_confidence
+        self.florence_minimum_margin = florence_minimum_margin
 
     @staticmethod
     def _result(product: Product, confidence: float, method: str, details: dict) -> IdentityResult:
@@ -148,7 +153,9 @@ class ProductIdentityService:
                 for product_id, score in evidence.retrieval_scores[:3]
                 if product_id in by_id
             ],
+            "florence_description": (evidence.florence_description or "")[:500] or None,
             "provider_errors": list(evidence.provider_errors),
+            "confidence_semantics": "heuristic evidence score; not a calibrated probability",
         }
 
         if evidence.barcode:
@@ -158,12 +165,11 @@ class ProductIdentityService:
             if len(matches) > 1:
                 return self._ambiguous(evidence, "catalog_barcode", len(matches), details)
 
+        manifest_choice = None
         if evidence.manifest_sku:
             matches = [product for product in products if product.sku == evidence.manifest_sku]
             if len(matches) == 1 and evidence.detector_confidence >= self.minimum_confidence:
-                return self._result(
-                    matches[0], evidence.detector_confidence, "reviewed_manifest_sku", details
-                )
+                manifest_choice = matches[0]
 
         label = normalize(evidence.detector_label)
         exact = [product for product in products if normalize(product.name) == label]
@@ -197,21 +203,60 @@ class ProductIdentityService:
                     and top_score - second_score >= self.ocr_minimum_margin):
                 ocr_choice = (top_product, top_score)
 
-        if retrieval_choice and ocr_choice:
-            if retrieval_choice[0].id != ocr_choice[0].id:
-                return self._ambiguous(evidence, "conflicting_ocr_and_visual", 2, details)
-            confidence = (
-                0.25 * evidence.detector_confidence
-                + 0.40 * retrieval_choice[1]
-                + 0.35 * ocr_choice[1]
+        ranked_florence = sorted(
+            ((product, _ocr_score(product, (evidence.florence_description or "",)))
+             for product in products),
+            key=lambda item: item[1], reverse=True,
+        )
+        florence_choice = None
+        if evidence.florence_description and ranked_florence:
+            top_product, top_score = ranked_florence[0]
+            second_score = ranked_florence[1][1] if len(ranked_florence) > 1 else 0.0
+            if (top_score >= self.florence_minimum_confidence
+                    and top_score - second_score >= self.florence_minimum_margin):
+                florence_choice = (top_product, top_score)
+
+        choices = [
+            ("retrieval", retrieval_choice),
+            ("ocr", ocr_choice),
+            ("florence", florence_choice),
+        ]
+        accepted = [(name, choice[0], choice[1]) for name, choice in choices if choice]
+        details["candidate_catalog_products"] = [
+            {"source": name, "product_id": product.id, "score": round(score, 4)}
+            for name, product, score in accepted
+        ]
+        selected_ids = {product.id for _name, product, _score in accepted}
+        if manifest_choice and selected_ids and selected_ids != {manifest_choice.id}:
+            return self._ambiguous(
+                evidence, "conflicting_detector_and_multimodal_evidence",
+                len(selected_ids | {manifest_choice.id}), details,
             )
-            return self._result(retrieval_choice[0], confidence, "ocr_visual_consensus", details)
-        if retrieval_choice:
-            confidence = 0.30 * evidence.detector_confidence + 0.70 * retrieval_choice[1]
-            return self._result(retrieval_choice[0], confidence, "dinov2_catalog_retrieval", details)
-        if ocr_choice:
-            confidence = 0.35 * evidence.detector_confidence + 0.65 * ocr_choice[1]
-            return self._result(ocr_choice[0], confidence, "paddleocr_catalog_match", details)
+        if len(selected_ids) > 1:
+            method = ("conflicting_ocr_and_visual" if not florence_choice
+                      else "conflicting_multimodal_evidence")
+            return self._ambiguous(evidence, method, len(selected_ids), details)
+        if accepted:
+            names = {name for name, _product, _score in accepted}
+            product = accepted[0][1]
+            # This conservative rule is explicit and intentionally not presented as calibration.
+            confidence = min(score for _name, _product, score in accepted)
+            if names == {"retrieval", "ocr"}:
+                method = "ocr_visual_consensus"
+            elif len(names) > 1:
+                method = "multimodal_consensus"
+            elif "retrieval" in names:
+                method = "dinov2_catalog_retrieval"
+            elif "ocr" in names:
+                method = "paddleocr_catalog_match"
+            else:
+                method = "florence_catalog_match"
+            details["supporting_evidence"] = sorted(names)
+            return self._result(product, confidence, method, details)
+        if manifest_choice:
+            return self._result(
+                manifest_choice, evidence.detector_confidence, "reviewed_manifest_sku", details
+            )
         if len(exact) == 1 and evidence.detector_confidence >= self.minimum_confidence:
             return self._result(exact[0], evidence.detector_confidence, "exact_catalog_name", details)
 

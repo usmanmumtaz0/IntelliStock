@@ -136,7 +136,7 @@ See [Phase 4 operations](docs/PHASE_4_OPERATIONS.md) for permissions, worker res
 
 ## Notifications and reports (Phase 5)
 
-The Reports page provides committed inventory summaries and authenticated CSV exports. Administrators can inspect notification readiness and durable email attempts in Settings. SMTP delivery is disabled by default and requires an explicitly approved recipient, server-side credentials, migration `0004`, and the separate notification worker. No real email test has been performed.
+The Reports page provides committed inventory summaries and authenticated CSV exports. Administrators can inspect notification readiness and durable email attempts in Settings. SMTP delivery is disabled by default and requires an explicitly approved recipient, server-side credentials, migration `0004`, and the separate notification worker. Local alert delivery was verified on 2026-10-23: the SMTP server accepted the open alert for both configured recipients. SMTP acceptance does not confirm inbox placement.
 
 Read the [Phase 5 runbook](docs/PHASE_5_NOTIFICATIONS_REPORTS.md) before enabling delivery; it explains retries, snooze/cancellation, SMTP acceptance versus inbox delivery, and pending deployment checks.
 
@@ -155,3 +155,23 @@ labels. Empty catalog SKU mappings remain review-only and cannot change inventor
 The [vision pipeline guide](docs/VISION_PIPELINE.md) covers Windows/NVIDIA setup, image/video/camera
 testing, product identity review, dataset preparation, evaluation, and current limitations. No
 held-out dataset was supplied, so accuracy is not claimed.
+
+### Running alert email delivery locally
+
+Start the notification worker alongside the API and video/event workers. Starting
+only the frontend and API does not send alert emails.
+
+```powershell
+cd backend
+python -m app.workers.notifications
+```
+
+Keep this process running and restart it after restarting the project or changing
+SMTP settings in `.env`. It checks eligible open/escalated alerts every five seconds,
+queues one delivery per alert stage and configured recipient, and retries temporary
+SMTP failures. Resolved alerts and inventory that no longer qualifies are skipped.
+Administrators can inspect delivery status in Settings; `accepted` means SMTP
+accepted the message, so check spam/junk if it is absent from the inbox.
+
+For Docker, include the notification service with
+`docker compose --profile notifications up -d`.

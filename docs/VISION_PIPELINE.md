@@ -187,3 +187,35 @@ requires labeled video tracks and is explicitly left unmeasured for image-only m
 - This machine currently exposes CPU-only PyTorch, so CUDA latency and GPU memory are not measured.
 - Camera jobs are bounded captures rather than an always-on multi-camera service. This prevents
   unbounded VRAM/task growth; continuous scheduling can be added after camera-specific load tests.
+
+## Conditional Florence-2 evidence
+
+Florence-2 is an optional secondary provider. The reviewed YOLOv8s checkpoint remains the
+only detector. PaddleOCR extracts packaging text, DINOv2 can retrieve against staged catalog
+reference images, and Florence-2 can produce a detailed crop description when the preliminary
+catalog result is ambiguous/unknown or the detector confidence is below the configured trigger.
+The provider runs once per new or materially sharper track crop and its result is reused.
+
+The supported default identifier is `microsoft/Florence-2-base` (0.23B parameters). No Florence
+weights are included in this repository. Runtime loading is local-only by default:
+
+```env
+CV_FLORENCE_ENABLED=true
+CV_FLORENCE_MODEL_ID=microsoft/Florence-2-base
+CV_FLORENCE_MODEL_PATH=C:/IntelliStock/models/florence-2-base
+CV_FLORENCE_ALLOW_REMOTE_DOWNLOAD=false
+CV_FLORENCE_TRUST_REMOTE_CODE=false
+CV_FLORENCE_DEVICE=cpu
+CV_FLORENCE_TASK=<DETAILED_CAPTION>
+CV_FLORENCE_POLICY=ambiguous_or_low_confidence
+```
+
+If a staged snapshot depends on Hugging Face custom model code, review that snapshot and only
+then set `CV_FLORENCE_TRUST_REMOTE_CODE=true`. Enabling remote download is a separate explicit
+choice. Model health reports configured, present, loaded, device, policy and error state without
+loading or downloading Florence. Missing Florence assets never disable core YOLO processing.
+
+Florence descriptions are matched against the existing catalog as a distinct heuristic evidence
+source. They are not treated as calibrated probabilities. Conflicts among OCR, visual retrieval
+and Florence remain ambiguous and enter the existing review flow. Raw model output never changes
+inventory.

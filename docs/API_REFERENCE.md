@@ -222,3 +222,7 @@ Detection responses include `identity_status`, `identity_confidence`, category, 
 product metadata, and evidence. Supported states are `identified`, `category_only`, `unknown`, and
 `ambiguous`. Job changes publish durable `vision_job_updated` events; clients must refetch the REST
 resource and must not treat WebSocket payloads or bounding-box counts as authoritative stock.
+
+The `identity_evidence` object returned by `GET /video-jobs/model-health` contains independent
+`ocr`, `retrieval`, and `florence` provider status. This endpoint performs a read-only preflight;
+it does not download or load optional model weights.

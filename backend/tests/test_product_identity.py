@@ -98,9 +98,62 @@ def test_device_auto_falls_back_and_explicit_cuda_fails_closed(monkeypatch):
 
 
 def test_model_health_is_authenticated_and_read_only(client, auth_headers):
+    assert client.get("/api/v1/video-jobs/model-health").status_code == 401
     response = client.get("/api/v1/video-jobs/model-health", headers=auth_headers)
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["detector"] == "ultralytics-yolov8"
     assert payload["actual_device"] in {"cpu", "cuda:0", "unavailable"}
     assert "model_path" in payload and "cuda_available" in payload
+
+def test_florence_description_can_support_catalog_match_and_conflicts_fail_closed():
+    with SessionLocal() as db:
+        marker = os.urandom(4).hex()
+        lays = _product(
+            f"Aurum {marker} Masala 34gm", brand=f"Aurum {marker}",
+            variant="Masala", package_size="34 gm",
+        )
+        surf = _product(f"Nimbus {marker} Cleaner 500gm", brand=f"Nimbus {marker}")
+        db.add_all([lays, surf])
+        db.commit()
+
+        matched = ProductIdentityService(db, 0.65).identify(IdentityEvidence(
+            detector_label="snack packet",
+            detector_confidence=0.58,
+            florence_description=f"Aurum {marker} Masala 34 gm packet",
+        ))
+        assert matched.status == IdentityStatus.IDENTIFIED
+        assert matched.product_id == lays.id
+        assert matched.evidence["method"] == "florence_catalog_match"
+
+        conflict = ProductIdentityService(db, 0.65).identify(IdentityEvidence(
+            detector_label="snack packet",
+            detector_confidence=0.58,
+            ocr_tokens=("Nimbus", marker, "Cleaner", "500gm"),
+            ocr_confidence=0.99,
+            florence_description=f"Aurum {marker} Masala 34 gm packet",
+        ))
+        assert conflict.status == IdentityStatus.AMBIGUOUS
+        assert conflict.product_id is None
+        assert conflict.evidence["method"] == "conflicting_multimodal_evidence"
+
+
+def test_reviewed_manifest_conflict_with_strong_secondary_evidence_requires_review():
+    with SessionLocal() as db:
+        marker = os.urandom(4).hex()
+        detector_product = _product(f"Detector {marker} Product")
+        ocr_product = _product(
+            f"Nimbus {marker} Cleaner 500gm", brand=f"Nimbus {marker}"
+        )
+        db.add_all([detector_product, ocr_product])
+        db.commit()
+        result = ProductIdentityService(db, 0.65).identify(IdentityEvidence(
+            detector_label=detector_product.name,
+            detector_confidence=0.91,
+            manifest_sku=detector_product.sku,
+            ocr_tokens=("Nimbus", marker, "Cleaner", "500gm"),
+            ocr_confidence=0.99,
+        ))
+        assert result.status == IdentityStatus.AMBIGUOUS
+        assert result.product_id is None
+        assert result.evidence["method"] == "conflicting_detector_and_multimodal_evidence"

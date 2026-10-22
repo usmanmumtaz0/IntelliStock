@@ -63,6 +63,19 @@ class Settings(BaseSettings):
     CV_OCR_MIN_CONFIDENCE: float = Field(default=0.55, ge=0.0, le=1.0)
     CV_OCR_MATCH_MIN_CONFIDENCE: float = Field(default=0.72, ge=0.0, le=1.0)
     CV_OCR_MATCH_MIN_MARGIN: float = Field(default=0.10, ge=0.0, le=1.0)
+    CV_FLORENCE_ENABLED: bool = False
+    CV_FLORENCE_MODEL_ID: str = "microsoft/Florence-2-base"
+    CV_FLORENCE_MODEL_PATH: str = ""
+    CV_FLORENCE_ALLOW_REMOTE_DOWNLOAD: bool = False
+    CV_FLORENCE_TRUST_REMOTE_CODE: bool = False
+    CV_FLORENCE_DEVICE: str = "cpu"
+    CV_FLORENCE_TASK: Literal["<CAPTION>", "<DETAILED_CAPTION>", "<MORE_DETAILED_CAPTION>"] = "<DETAILED_CAPTION>"
+    CV_FLORENCE_POLICY: Literal["ambiguous", "low_confidence", "ambiguous_or_low_confidence"] = "ambiguous_or_low_confidence"
+    CV_FLORENCE_TRIGGER_MAX_CONFIDENCE: float = Field(default=0.70, ge=0.0, le=1.0)
+    CV_FLORENCE_MATCH_MIN_CONFIDENCE: float = Field(default=0.72, ge=0.0, le=1.0)
+    CV_FLORENCE_MATCH_MIN_MARGIN: float = Field(default=0.10, ge=0.0, le=1.0)
+    CV_FLORENCE_MAX_NEW_TOKENS: int = Field(default=128, ge=16, le=1024)
+    CV_FLORENCE_NUM_BEAMS: int = Field(default=3, ge=1, le=8)
     CV_EMBEDDING_ENABLED: bool = False
     CV_EMBEDDING_MODEL_PATH: str = ""
     CV_EMBEDDING_DEVICE: str = "cpu"

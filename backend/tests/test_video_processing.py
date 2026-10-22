@@ -343,6 +343,14 @@ def test_worker_fuses_optional_ocr_evidence_without_changing_inventory(monkeypat
                 tokens=("Aurum", marker, "Masala", "34 gm"), confidence=.99
             ))
 
+        @staticmethod
+        def should_use_florence(_status, _confidence):
+            return False
+
+        @staticmethod
+        def add_florence(evidence, _crop):
+            return evidence
+
     monkeypatch.setattr(video_processing, "VideoFrameSampler", _Sampler)
     monkeypatch.setattr(video_processing.model_service, "_load", lambda: None)
     monkeypatch.setattr(video_processing.model_service, "reset_tracking", lambda: None)

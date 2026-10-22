@@ -22,3 +22,9 @@ counting accuracy has not been evaluated. Only load checkpoints from trusted
 sources. See `docs/VISION_PIPELINE.md` for setup and evaluation steps.
 
 Other models, runtime configuration, caches and local manifests remain ignored.
+
+The file supplied as `best.pt (1).zip` was inspected as a PyTorch archive and has the same
+SHA-256 (`6502323f9dc4339312bc41d1e5281cd7d51d0c84f42c6286970db8259a5d46c5`) as
+`models/best.pt`; it is not a newer detector and is not a Florence or OCR checkpoint.
+Florence-2 weights must be staged separately under a local directory configured with
+`CV_FLORENCE_MODEL_PATH`.

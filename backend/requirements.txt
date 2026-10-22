@@ -34,6 +34,9 @@ paddleocr==3.7.0
 paddlepaddle==3.2.1
 transformers==4.46.3
 safetensors==0.6.2
+# Florence-2 remote-code checkpoints import these vision helpers directly.
+timm==1.0.30
+einops==0.8.2
 Pillow==10.4.0
 
 # Uvicorn 0.24 uses the legacy WebSocket server API.

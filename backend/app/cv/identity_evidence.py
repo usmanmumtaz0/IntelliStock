@@ -47,9 +47,16 @@ class RetrievalEvidence:
 
 
 @dataclass(frozen=True)
+class FlorenceEvidence:
+    description: str | None = None
+    task: str | None = None
+
+
+@dataclass(frozen=True)
 class EnrichedIdentityEvidence:
     ocr: OCREvidence = field(default_factory=OCREvidence)
     retrieval: RetrievalEvidence = field(default_factory=RetrievalEvidence)
+    florence: FlorenceEvidence = field(default_factory=FlorenceEvidence)
     errors: tuple[str, ...] = ()
 
 
@@ -239,7 +246,8 @@ class DinoV2Retriever:
             self._model.eval()
             self._error = None
         except Exception as exc:
-            self._error = f"Visual retrieval unavailable: {type(exc).__name__}: {exc}"[:300]
+            message = str(exc).replace(str(self.model_path), self.model_path.name) if self.model_path else str(exc)
+            self._error = f"Visual retrieval unavailable: {type(exc).__name__}: {message}"[:300]
             raise RuntimeError(self._error) from exc
 
     def _safe_reference_path(self, value: str) -> Path | None:
@@ -325,9 +333,154 @@ class DinoV2Retriever:
             "model_present": model_present,
             "loaded": self._model is not None,
             "model_path": self.model_path.name if self.model_path else None,
-            "reference_root": str(self.reference_root),
+            "reference_root": self.reference_root.name,
             "reference_embeddings": len(self._reference_vectors),
             "device": self.device,
+            "error": self._error,
+        }
+
+
+def parse_florence_output(result: Any, task: str) -> FlorenceEvidence:
+    """Normalize official Florence-2 caption post-processing output."""
+    value = result.get(task, result) if isinstance(result, dict) else result
+    if isinstance(value, dict):
+        for key in ("caption", "description", "text"):
+            if isinstance(value.get(key), str):
+                value = value[key]
+                break
+        else:
+            labels = value.get("labels")
+            value = " ".join(str(item) for item in labels) if isinstance(labels, list) else ""
+    text = _clean_token(value)
+    return FlorenceEvidence(description=text[:500] if text else None, task=task if text else None)
+
+
+class Florence2Provider:
+    """Lazy optional Florence-2 caption evidence using an explicit model source."""
+
+    def __init__(self, *, enabled: bool, model_id: str, model_path: str,
+                 allow_remote_download: bool, trust_remote_code: bool, device: str,
+                 task: str, policy: str, trigger_max_confidence: float,
+                 max_new_tokens: int, num_beams: int, cache_root: str):
+        self.enabled = enabled
+        self.model_id = model_id.strip()
+        self.model_path = Path(model_path).expanduser() if model_path else None
+        self.allow_remote_download = allow_remote_download
+        self.trust_remote_code = trust_remote_code
+        self.requested_device = device
+        self.task = task
+        self.policy = policy
+        self.trigger_max_confidence = trigger_max_confidence
+        self.max_new_tokens = max_new_tokens
+        self.num_beams = num_beams
+        self.cache_root = Path(cache_root).expanduser().resolve()
+        self._processor = None
+        self._model = None
+        self._actual_device = "unresolved"
+        self._error: str | None = None
+        self._lock = RLock()
+
+    def _source(self) -> tuple[str, bool]:
+        if self.model_path and self.model_path.is_dir():
+            return str(self.model_path), True
+        if self.allow_remote_download and self.model_id:
+            return self.model_id, False
+        raise RuntimeError(
+            "Configured local Florence-2 model directory is missing; remote download is disabled"
+        )
+
+    def _load(self) -> None:
+        if self._model is not None:
+            return
+        if not self.enabled:
+            raise RuntimeError("Florence-2 is disabled")
+        try:
+            configure_model_cache(self.cache_root)
+            import torch
+            from transformers import AutoModelForCausalLM, AutoProcessor
+            from app.cv.detectors import resolve_device
+
+            source, local_only = self._source()
+            self._actual_device, _cuda = resolve_device(self.requested_device)
+            dtype = torch.float16 if self._actual_device.startswith("cuda") else torch.float32
+            common = {
+                "local_files_only": local_only,
+                "trust_remote_code": self.trust_remote_code,
+            }
+            self._processor = AutoProcessor.from_pretrained(source, **common)
+            self._model = AutoModelForCausalLM.from_pretrained(
+                source,
+                torch_dtype=dtype,
+                use_safetensors=True,
+                **common,
+            ).to(self._actual_device)
+            self._model.eval()
+            self._error = None
+        except Exception as exc:
+            message = str(exc).replace(str(self.model_path), self.model_path.name) if self.model_path else str(exc)
+            self._error = f"Florence-2 unavailable: {type(exc).__name__}: {message}"[:300]
+            raise RuntimeError(self._error) from exc
+
+    def describe(self, crop: np.ndarray) -> FlorenceEvidence:
+        if not self.enabled or crop.size == 0:
+            return FlorenceEvidence()
+        with self._lock:
+            self._load()
+            import torch
+            from PIL import Image
+
+            image = Image.fromarray(crop[:, :, ::-1])
+            inputs = self._processor(text=self.task, images=image, return_tensors="pt")
+            prepared = {}
+            dtype = torch.float16 if self._actual_device.startswith("cuda") else torch.float32
+            for key, value in inputs.items():
+                if torch.is_floating_point(value):
+                    prepared[key] = value.to(device=self._actual_device, dtype=dtype)
+                else:
+                    prepared[key] = value.to(self._actual_device)
+            with torch.inference_mode():
+                generated = self._model.generate(
+                    **prepared,
+                    max_new_tokens=self.max_new_tokens,
+                    num_beams=self.num_beams,
+                    do_sample=False,
+                )
+            decoded = self._processor.batch_decode(generated, skip_special_tokens=False)[0]
+            parsed = self._processor.post_process_generation(
+                decoded, task=self.task, image_size=image.size
+            )
+            return parse_florence_output(parsed, self.task)
+
+    def should_run(self, identity_status: str, detector_confidence: float) -> bool:
+        if not self.enabled:
+            return False
+        ambiguous = identity_status in {"ambiguous", "unknown", "category_only"}
+        low_confidence = detector_confidence <= self.trigger_max_confidence
+        return {
+            "ambiguous": ambiguous,
+            "low_confidence": low_confidence,
+            "ambiguous_or_low_confidence": ambiguous or low_confidence,
+        }[self.policy]
+
+    def health(self) -> dict[str, Any]:
+        model_present = bool(self.model_path and self.model_path.is_dir())
+        source = self.model_path.name if model_present else (
+            self.model_id if self.allow_remote_download else None
+        )
+        return {
+            "provider": "florence2",
+            "enabled": self.enabled,
+            "package_available": importlib.util.find_spec("transformers") is not None,
+            "model_present": model_present,
+            "loaded": self._model is not None,
+            "model_source": source,
+            "model_id": self.model_id,
+            "remote_download_allowed": self.allow_remote_download,
+            "trust_remote_code": self.trust_remote_code,
+            "task": self.task,
+            "policy": self.policy,
+            "requested_device": self.requested_device,
+            "actual_device": self._actual_device,
             "error": self._error,
         }
 
@@ -352,10 +505,24 @@ class IdentityEvidenceRuntime:
             maximum_reference_images=settings.CV_MAX_REFERENCE_IMAGES,
             cache_root=settings.CV_IDENTITY_CACHE_ROOT,
         )
+        self.florence = Florence2Provider(
+            enabled=settings.CV_FLORENCE_ENABLED,
+            model_id=settings.CV_FLORENCE_MODEL_ID,
+            model_path=settings.CV_FLORENCE_MODEL_PATH,
+            allow_remote_download=settings.CV_FLORENCE_ALLOW_REMOTE_DOWNLOAD,
+            trust_remote_code=settings.CV_FLORENCE_TRUST_REMOTE_CODE,
+            device=settings.CV_FLORENCE_DEVICE,
+            task=settings.CV_FLORENCE_TASK,
+            policy=settings.CV_FLORENCE_POLICY,
+            trigger_max_confidence=settings.CV_FLORENCE_TRIGGER_MAX_CONFIDENCE,
+            max_new_tokens=settings.CV_FLORENCE_MAX_NEW_TOKENS,
+            num_beams=settings.CV_FLORENCE_NUM_BEAMS,
+            cache_root=settings.CV_IDENTITY_CACHE_ROOT,
+        )
 
     @property
     def enabled(self) -> bool:
-        return self.ocr.enabled or self.retriever.enabled
+        return self.ocr.enabled or self.retriever.enabled or self.florence.enabled
 
     def extract(self, crop: np.ndarray, products: Iterable[Product]) -> EnrichedIdentityEvidence:
         errors: list[str] = []
@@ -375,8 +542,30 @@ class IdentityEvidenceRuntime:
                 errors.append("retrieval_unavailable")
         return EnrichedIdentityEvidence(ocr=ocr, retrieval=retrieval, errors=tuple(errors))
 
+    def should_use_florence(self, identity_status: str, detector_confidence: float) -> bool:
+        return self.florence.should_run(identity_status, detector_confidence)
+
+    def add_florence(self, evidence: EnrichedIdentityEvidence,
+                     crop: np.ndarray) -> EnrichedIdentityEvidence:
+        try:
+            florence = self.florence.describe(crop)
+            return EnrichedIdentityEvidence(
+                ocr=evidence.ocr, retrieval=evidence.retrieval, florence=florence,
+                errors=evidence.errors,
+            )
+        except Exception as exc:
+            logger.warning("Florence-2 evidence unavailable: %s", exc)
+            return EnrichedIdentityEvidence(
+                ocr=evidence.ocr, retrieval=evidence.retrieval, florence=evidence.florence,
+                errors=(*evidence.errors, "florence_unavailable"),
+            )
+
     def health(self) -> dict[str, Any]:
-        return {"ocr": self.ocr.health(), "retrieval": self.retriever.health()}
+        return {
+            "ocr": self.ocr.health(),
+            "retrieval": self.retriever.health(),
+            "florence": self.florence.health(),
+        }
 
 
 def crop_detection(frame: np.ndarray, xyxy: Iterable[float], padding_ratio: float = 0.04) -> np.ndarray:

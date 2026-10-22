@@ -323,4 +323,5 @@ export interface DetectorHealthDto {
   class_count: number;
   input_size: number;
   error: string | null;
+  identity_evidence: Record<string, unknown>;
 }
